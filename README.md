@@ -28,7 +28,12 @@ Die **Anmeldung** befindet sich in der Fusszeile jeder Seite. Danach erscheint d
 
 - **Rollen:** *Admin* (alles), *Redaktor* (Inhalte & Portfolio), *Benutzer* (keine Verwaltungsrechte). Weitere Rollen lassen sich anlegen. Niemand kann Rechte vergeben, die er selbst nicht hat.
 - **Inhaber:** `hatem.benbelgacem@outlook.com` ist immer Admin – das Konto kann nicht gelöscht, gesperrt oder herabgestuft werden.
-- **Erstes Passwort:** Beim ersten Start wird das Inhaber-Konto angelegt. Ist `ADMIN_PASSWORD` gesetzt, gilt dieses Passwort, sonst wird ein zufälliges erzeugt und einmalig ins Server-Log geschrieben. Nach der ersten Anmeldung unter *Mein Konto* ändern.
+- **Erstes Passwort:** Beim ersten Start wird das Inhaber-Konto angelegt. Ist `ADMIN_PASSWORD` gesetzt, gilt dieses Passwort, sonst wird ein zufälliges erzeugt und einmalig ins Server-Log geschrieben (Zeile `Startpasswort: …`). Nach der ersten Anmeldung unter *Mein Konto* ändern.
+- **Passwort vergessen:** Mit `ADMIN_PASSWORD=<neu>` **und** `ADMIN_PASSWORD_RESET=1` starten – das Inhaber-Passwort wird beim Start ersetzt und alle seine Sessions beendet. Danach `ADMIN_PASSWORD_RESET` wieder entfernen (auf Railway: Variable löschen und neu deployen).
+
+  ```bash
+  ADMIN_PASSWORD='neues-passwort' ADMIN_PASSWORD_RESET=1 cargo leptos watch
+  ```
 - Es gibt **keine öffentliche Registrierung** – neue Konten legt ein Admin an.
 - Passwörter werden mit Argon2 gespeichert, Sessions als HttpOnly-Cookie (30 Tage, in der DB nur als SHA-256-Hash).
 

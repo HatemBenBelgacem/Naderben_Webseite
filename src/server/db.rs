@@ -102,18 +102,39 @@ async fn ensure_owner(pool: &SqlitePool) -> Result<(), Box<dyn std::error::Error
         .fetch_optional(pool)
         .await?;
 
-    if existing.is_some() {
-        sqlx::query("UPDATE users SET role_id = ?, active = 1 WHERE email = ?")
+    let env_password = std::env::var("ADMIN_PASSWORD").ok().filter(|p| !p.trim().is_empty());
+
+    if let Some((id,)) = existing {
+        sqlx::query("UPDATE users SET role_id = ?, active = 1 WHERE id = ?")
             .bind(ADMIN_ROLE_ID)
-            .bind(OWNER_EMAIL)
+            .bind(id)
             .execute(pool)
             .await?;
+
+        // Notfall-Reset: ADMIN_PASSWORD_RESET=1 setzt das Passwort auf ADMIN_PASSWORD
+        let reset = std::env::var("ADMIN_PASSWORD_RESET").is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+        if reset {
+            let Some(password) = env_password else {
+                eprintln!("[auth] ADMIN_PASSWORD_RESET ist gesetzt, aber ADMIN_PASSWORD fehlt – kein Reset.");
+                return Ok(());
+            };
+            if let Err(ServerFnError::ServerError(msg)) = auth::validate_password(&password) {
+                return Err(format!("ADMIN_PASSWORD: {msg}").into());
+            }
+            let hash = auth::hash_password(&password).await.map_err(|e| e.to_string())?;
+            sqlx::query("UPDATE users SET password_hash = ? WHERE id = ?").bind(hash).bind(id).execute(pool).await?;
+            sqlx::query("DELETE FROM sessions WHERE user_id = ?").bind(id).execute(pool).await?;
+            println!(
+                "[auth] Passwort des Inhaber-Kontos wurde zurückgesetzt. \
+                 ADMIN_PASSWORD_RESET jetzt wieder entfernen."
+            );
+        }
         return Ok(());
     }
 
-    let (password, generated) = match std::env::var("ADMIN_PASSWORD") {
-        Ok(p) if !p.trim().is_empty() => (p, false),
-        _ => (auth::random_password(), true),
+    let (password, generated) = match env_password {
+        Some(p) => (p, false),
+        None => (auth::random_password(), true),
     };
     let hash = auth::hash_password(&password).await.map_err(|e| e.to_string())?;
     sqlx::query("INSERT INTO users (email, name, password_hash, role_id) VALUES (?, ?, ?, ?)")
