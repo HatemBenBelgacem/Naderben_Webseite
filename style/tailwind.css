@@ -1,0 +1,238 @@
+@import "tailwindcss";
+@source "../src";
+
+/* ───────────── Design-Tokens ───────────── */
+@theme {
+  --color-bg: #0b0b0c;
+  --color-bg-2: #131315;
+  --color-surface: #1a1a1d;
+  --color-line: rgb(244 241 234 / 0.1);
+  --color-ink: #f4f1ea;
+  --color-soft: #d6d2c9;
+  --color-body: #c9c5bc;
+  --color-muted: #9b978f;
+  --color-accent: #e9b44c;
+  --color-accent-hover: #f3c66a;
+  --color-accent-ink: #1a1408;
+
+  --font-display: "Syne", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+
+  --radius-card: 18px;
+  --ease-soft: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  --breakpoint-sm: 35rem;
+  --breakpoint-md: 51.25rem;
+
+  --animate-reveal: reveal 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-hero-zoom: hero-zoom 14s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-marquee: marquee 32s linear infinite;
+  --animate-pulse-ring: pulse-ring 2.4s infinite;
+  --animate-fade: fade 0.3s ease;
+  --animate-zoom-in: zoom-in 0.4s cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  @keyframes reveal {
+    from {
+      opacity: 0;
+      translate: 0 24px;
+    }
+  }
+  @keyframes hero-zoom {
+    from {
+      scale: 1.08;
+    }
+    to {
+      scale: 1;
+    }
+  }
+  @keyframes marquee {
+    to {
+      translate: -50% 0;
+    }
+  }
+  @keyframes pulse-ring {
+    0% {
+      box-shadow: 0 0 0 0 rgb(233 180 76 / 0.5);
+    }
+    70%,
+    100% {
+      box-shadow: 0 0 0 22px rgb(233 180 76 / 0);
+    }
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes zoom-in {
+    from {
+      opacity: 0;
+      scale: 0.96;
+    }
+  }
+}
+
+/* ───────────── Basis ───────────── */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-bg font-body text-ink antialiased;
+    font-size: 17px;
+    line-height: 1.65;
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-display font-bold;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5em;
+  }
+  h1 {
+    font-size: clamp(2.6rem, 7vw, 5.6rem);
+  }
+  h2 {
+    font-size: clamp(1.9rem, 4vw, 3rem);
+  }
+  h3 {
+    font-size: 1.3rem;
+  }
+
+  p {
+    margin-bottom: 1em;
+  }
+
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+
+  ::selection {
+    @apply bg-accent text-accent-ink;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ───────────── Wiederverwendbare Bausteine ───────────── */
+@utility wrap {
+  width: min(1240px, 100% - 48px);
+  margin-inline: auto;
+
+  @media (width < 35rem) {
+    width: calc(100% - 32px);
+  }
+}
+
+@utility section-y {
+  padding-block: clamp(64px, 10vw, 120px);
+}
+
+@utility page-hero {
+  padding-top: calc(76px + clamp(48px, 9vw, 110px));
+  padding-bottom: clamp(32px, 5vw, 56px);
+}
+
+@utility eyebrow {
+  display: inline-block;
+  margin-bottom: 1rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+@utility lead {
+  max-width: 60ch;
+  font-size: clamp(1.1rem, 1.6vw, 1.3rem);
+  color: var(--color-soft);
+}
+
+@utility text-outline {
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--color-ink);
+}
+
+@utility btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.95em 1.6em;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition:
+    translate 0.3s var(--ease-soft),
+    background-color 0.3s,
+    color 0.3s,
+    border-color 0.3s;
+
+  &:hover {
+    translate: 0 -2px;
+  }
+  &:disabled {
+    opacity: 0.6;
+    cursor: wait;
+    translate: none;
+  }
+}
+
+@utility btn-primary {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+
+  &:hover {
+    background: var(--color-accent-hover);
+  }
+}
+
+@utility btn-ghost {
+  border: 1px solid rgb(244 241 234 / 0.35);
+
+  &:hover {
+    border-color: var(--color-ink);
+    background: rgb(244 241 234 / 0.06);
+  }
+}
+
+/* Runder Play-Button mit CSS-Dreieck (Grösse im Markup setzen) */
+@utility play-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-accent);
+
+  &::before {
+    content: "";
+    margin-left: 5px;
+    border-style: solid;
+    border-width: 11px 0 11px 18px;
+    border-color: transparent transparent transparent var(--color-accent-ink);
+  }
+}
+
+@utility hero-overlay {
+  background:
+    linear-gradient(to top, var(--color-bg) 2%, rgb(11 11 12 / 0.55) 45%, rgb(11 11 12 / 0.35)),
+    radial-gradient(ellipse at 20% 80%, rgb(233 180 76 / 0.15), transparent 60%);
+}

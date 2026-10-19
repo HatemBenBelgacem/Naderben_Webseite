@@ -1,0 +1,6 @@
+# `erase_components` kapselt Leptos-Komponenten in AnyView. Das hält die
+# Typ-Symbole kurz (der macOS-Linker bricht sonst ab) und beschleunigt Builds.
+# Wichtig: Server und WASM-Client müssen das Flag gemeinsam setzen, sonst
+# passen die Hydration-Marker nicht zusammen – deshalb global für alle Targets.
+[build]
+rustflags = ["--cfg", "erase_components"]
