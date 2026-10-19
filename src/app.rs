@@ -145,7 +145,7 @@ fn Header() -> impl IntoView {
 }
 
 const FOOTER_LINK: &str = "text-muted transition-colors hover:text-accent";
-const FOOTER_INPUT: &str = "w-full rounded-lg border border-line bg-bg-2 px-3 py-2 text-[0.9rem] text-ink placeholder:text-[#5f5c57] focus:border-accent focus:outline-none sm:w-52";
+const DIALOG_INPUT: &str = "w-full rounded-xl border border-line bg-bg px-3.5 py-2.5 text-ink placeholder:text-[#5f5c57] transition focus:border-accent focus:ring-[3px] focus:ring-accent/20 focus:outline-none";
 
 #[component]
 fn Footer() -> impl IntoView {
@@ -153,8 +153,8 @@ fn Footer() -> impl IntoView {
 
     view! {
         <footer class="border-t border-line bg-bg pt-14">
-            <div class="wrap grid gap-8 md:grid-cols-[2fr_1fr_1fr]">
-                <div>
+            <div class="wrap grid gap-8 sm:grid-cols-2 md:grid-cols-[2fr_1fr_1fr_1fr]">
+                <div class="sm:col-span-2 md:col-span-1">
                     <p class="mb-2.5 font-display text-xl font-extrabold tracking-[0.08em]">
                         "NADER" <span class="text-accent">"BEN"</span>
                     </p>
@@ -173,29 +173,29 @@ fn Footer() -> impl IntoView {
                     <a class=FOOTER_LINK href=move || site.text("social.vimeo") target="_blank" rel="noopener">"Vimeo"</a>
                     <a class=FOOTER_LINK href=move || site.text("social.youtube") target="_blank" rel="noopener">"YouTube"</a>
                 </div>
+                <FooterAccount />
             </div>
-            <div class="wrap mt-12 flex flex-col gap-4 border-t border-line py-6 text-[0.85rem] text-muted md:flex-row md:items-center md:justify-between">
-                <span>"© 2026 Nader Ben. Alle Rechte vorbehalten."</span>
-                <FooterLogin />
+            <div class="wrap mt-12 border-t border-line py-6 text-[0.85rem] text-muted">
+                "© 2026 Nader Ben. Alle Rechte vorbehalten."
             </div>
         </footer>
     }
 }
 
-/// Anmeldung bzw. Konto-Links in der Fusszeile
+/// Eigene Footer-Spalte: „Anmelden“ öffnet den Login-Dialog, angemeldet folgen Konto-Links
 #[component]
-fn FooterLogin() -> impl IntoView {
+fn FooterAccount() -> impl IntoView {
     let site = use_site();
-    let (open, set_open) = signal(false);
+    let open = RwSignal::new(false);
     let login = ServerAction::<Login>::new();
     let logout = ServerAction::<Logout>::new();
     let navigate = use_navigate();
     let location = use_location();
 
-    // Nach erfolgreicher Anmeldung: Benutzer neu laden, Formular schliessen
+    // Nach erfolgreicher Anmeldung: Dialog schliessen, Benutzer neu laden
     Effect::new(move |_| {
         if let Some(Ok(_)) = login.value().get() {
-            set_open.set(false);
+            open.set(false);
             site.user.refetch();
         }
     });
@@ -209,57 +209,114 @@ fn FooterLogin() -> impl IntoView {
         }
     });
 
+    let open_dialog = move |_| {
+        login.value().set(None);
+        open.set(true);
+    };
+
+    view! {
+        <div class="flex flex-col gap-2">
+            {move || match site.current_user() {
+                Some(user) => view! {
+                    <span class="text-[0.85rem] text-muted">
+                        "Angemeldet als " <strong class="font-medium text-ink">{user.name.clone()}</strong>
+                    </span>
+                    {if user.has_admin_access() {
+                        view! { <A href="/admin" attr:class=FOOTER_LINK>"Verwaltung"</A> }.into_any()
+                    } else {
+                        view! { <A href="/admin/konto" attr:class=FOOTER_LINK>"Mein Konto"</A> }.into_any()
+                    }}
+                    <button class=format!("{FOOTER_LINK} text-left") on:click=move |_| { logout.dispatch(Logout {}); }>
+                        "Abmelden"
+                    </button>
+                }
+                .into_any(),
+                None => view! {
+                    <button class=format!("{FOOTER_LINK} text-left") aria-haspopup="dialog" on:click=open_dialog>
+                        "Anmelden"
+                    </button>
+                }
+                .into_any(),
+            }}
+        </div>
+        <LoginDialog open login />
+    }
+}
+
+/// Anmeldemaske als eigenes Fenster über der Seite (schliessen mit ✕, Esc oder Klick daneben)
+#[component]
+fn LoginDialog(open: RwSignal<bool>, login: ServerAction<Login>) -> impl IntoView {
+    let email = NodeRef::<leptos::html::Input>::new();
+
+    let handle = window_event_listener(leptos::ev::keydown, move |e| {
+        if e.key() == "Escape" && open.get_untracked() {
+            open.set(false);
+        }
+    });
+    on_cleanup(move || handle.remove());
+
+    // Beim Öffnen: E-Mail-Feld fokussieren und Seite dahinter nicht scrollen lassen
+    Effect::new(move |_| {
+        let is_open = open.get();
+        if let Some(body) = document().body() {
+            let _ = body.class_list().toggle_with_force("overflow-hidden", is_open);
+        }
+        if is_open {
+            request_animation_frame(move || {
+                if let Some(input) = email.get_untracked() {
+                    let _ = input.focus();
+                }
+            });
+        }
+    });
+
     let error = move || match login.value().get() {
         Some(Err(ServerFnError::ServerError(msg))) => Some(msg),
         Some(Err(e)) => Some(e.to_string()),
         _ => None,
     };
 
-    move || match site.current_user() {
-        Some(user) => view! {
-            <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-                <span>
-                    "Angemeldet als " <strong class="text-ink">{user.name.clone()}</strong>
-                    " · " {user.role.clone()}
-                </span>
-                {if user.has_admin_access() {
-                    view! { <A href="/admin" attr:class="text-accent hover:underline">"Verwaltung"</A> }.into_any()
-                } else {
-                    view! { <A href="/admin/konto" attr:class="text-accent hover:underline">"Mein Konto"</A> }.into_any()
-                }}
-                <button class="underline-offset-4 hover:text-ink hover:underline" on:click=move |_| { logout.dispatch(Logout {}); }>
-                    "Abmelden"
-                </button>
-            </div>
-        }
-        .into_any(),
-        None => view! {
-            <div class="flex flex-col items-start gap-3 md:items-end">
-                <Show
-                    when=move || open.get()
-                    fallback=move || view! {
-                        <button class="underline-offset-4 hover:text-ink hover:underline" on:click=move |_| set_open.set(true)>
-                            "Anmelden"
-                        </button>
-                    }
+    view! {
+        <Show when=move || open.get()>
+            <div
+                class="fixed inset-0 z-[100] flex animate-fade items-center justify-center bg-[rgb(5_5_6/0.85)] px-4 backdrop-blur-sm"
+                on:click=move |_| open.set(false)
+            >
+                <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="login-title"
+                    class="relative w-full max-w-sm animate-zoom-in rounded-card border border-line bg-bg-2 p-7 shadow-2xl shadow-black/60"
+                    on:click=|e| e.stop_propagation()
                 >
-                    <ActionForm action=login attr:class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-                        <input class=FOOTER_INPUT type="email" name="email" required autocomplete="username" placeholder="E-Mail" aria-label="E-Mail" />
-                        <input class=FOOTER_INPUT type="password" name="password" required autocomplete="current-password" placeholder="Passwort" aria-label="Passwort" />
-                        <div class="flex gap-2">
-                            <button type="submit" class="btn btn-primary px-4 py-2" disabled=move || login.pending().get()>
-                                {move || if login.pending().get() { "…" } else { "Anmelden" }}
-                            </button>
-                            <button type="button" class="px-2 hover:text-ink" aria-label="Abbrechen" on:click=move |_| set_open.set(false)>
-                                "✕"
-                            </button>
-                        </div>
+                    <button
+                        class="absolute top-4 right-4 size-9 rounded-full text-muted transition-colors hover:bg-white/10 hover:text-ink"
+                        aria-label="Schliessen"
+                        on:click=move |_| open.set(false)
+                    >
+                        "✕"
+                    </button>
+                    <p class="eyebrow">"Verwaltung"</p>
+                    <h2 id="login-title" class="mb-6 text-[1.9rem]">"Anmelden"</h2>
+                    <ActionForm action=login attr:class="flex flex-col gap-4">
+                        <label class="flex flex-col gap-1.5">
+                            <span class="text-[0.85rem] text-muted">"E-Mail"</span>
+                            <input node_ref=email class=DIALOG_INPUT type="email" name="email" required autocomplete="username" />
+                        </label>
+                        <label class="flex flex-col gap-1.5">
+                            <span class="text-[0.85rem] text-muted">"Passwort"</span>
+                            <input class=DIALOG_INPUT type="password" name="password" required autocomplete="current-password" />
+                        </label>
+                        {move || error().map(|msg| view! {
+                            <p class="mb-0 rounded-xl bg-[rgb(230_100_90/0.12)] px-3.5 py-2.5 text-[0.9rem] text-[#f4a49b]" role="alert">{msg}</p>
+                        })}
+                        <button type="submit" class="btn btn-primary mt-1 justify-center" disabled=move || login.pending().get()>
+                            {move || if login.pending().get() { "Wird geprüft …" } else { "Anmelden" }}
+                        </button>
                     </ActionForm>
-                    {move || error().map(|msg| view! { <p class="mb-0 text-[#f4a49b]" role="alert">{msg}</p> })}
-                </Show>
+                </div>
             </div>
-        }
-        .into_any(),
+        </Show>
     }
 }
 
