@@ -1,2 +1,4 @@
 /target
 .DS_Store
+# Lokale SQLite-Datenbank
+/data

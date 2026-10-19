@@ -1,6 +1,8 @@
 use leptos::prelude::*;
 use leptos_meta::Title;
 
+use crate::content::use_site;
+
 /// Nimmt Kontaktanfragen entgegen. Aktuell werden sie validiert und ins
 /// Server-Log geschrieben (sichtbar in den Railway-Logs). Hier lässt sich
 /// später E-Mail-Versand (z. B. lettre/SMTP) oder ein Webhook anschliessen.
@@ -49,6 +51,8 @@ const STATUS: &str = "rounded-xl px-[1.1em] py-[0.9em] text-[0.95rem]";
 
 #[component]
 pub fn ContactPage() -> impl IntoView {
+    let site = use_site();
+    let t = move |key: &'static str| move || site.text(key);
     let action = ServerAction::<SendContact>::new();
     let pending = action.pending();
 
@@ -76,32 +80,38 @@ pub fn ContactPage() -> impl IntoView {
     };
 
     view! {
+        <Transition fallback=|| ()>
         <Title text="Contact" />
         <section class="wrap page-hero">
             <p class="eyebrow">"Contact"</p>
-            <h1 class="max-w-[18ch]">"Erzähl mir von deinem Projekt."</h1>
-            <p class="lead">"Hochzeit, Imagefilm oder Portrait-Shooting – schreib mir, ich freue mich auf deine Idee."</p>
+            <h1 class="max-w-[18ch]">{t("contact.title")}</h1>
+            <p class="lead">{t("contact.lead")}</p>
         </section>
 
         <section class="wrap grid gap-[clamp(32px,6vw,96px)] pb-[clamp(64px,10vw,120px)] md:grid-cols-[4fr_7fr]">
             <aside class="flex flex-col gap-7">
                 <div>
                     <small class=INFO_LABEL>"E-Mail"</small>
-                    <a class=INFO_LINK href="mailto:hello@naderben.com">"hello@naderben.com"</a>
+                    <a class=INFO_LINK href=move || format!("mailto:{}", site.text("contact.email"))>{t("contact.email")}</a>
                 </div>
                 <div>
                     <small class=INFO_LABEL>"Telefon"</small>
-                    <a class=INFO_LINK href="tel:+41790000000">"+41 79 000 00 00"</a>
+                    <a
+                        class=INFO_LINK
+                        href=move || format!("tel:{}", site.text("contact.phone").chars().filter(|c| c.is_ascii_digit() || *c == '+').collect::<String>())
+                    >
+                        {t("contact.phone")}
+                    </a>
                 </div>
                 <div>
                     <small class=INFO_LABEL>"Studio"</small>
-                    <p class="mb-0 text-[1.1rem]">"Zürich, Schweiz" <br /> "Weltweit verfügbar"</p>
+                    <p class="mb-0 text-[1.1rem]">{t("contact.location")} <br /> {t("contact.availability")}</p>
                 </div>
                 <div>
                     <small class=INFO_LABEL>"Social"</small>
                     <p class="mb-0 flex gap-5">
-                        <a class=INFO_LINK href="https://instagram.com" target="_blank" rel="noopener">"Instagram"</a>
-                        <a class=INFO_LINK href="https://vimeo.com" target="_blank" rel="noopener">"Vimeo"</a>
+                        <a class=INFO_LINK href=t("social.instagram") target="_blank" rel="noopener">"Instagram"</a>
+                        <a class=INFO_LINK href=t("social.vimeo") target="_blank" rel="noopener">"Vimeo"</a>
                     </p>
                 </div>
             </aside>
@@ -147,5 +157,6 @@ pub fn ContactPage() -> impl IntoView {
                 {result}
             </ActionForm>
         </section>
+        </Transition>
     }
 }

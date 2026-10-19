@@ -25,8 +25,7 @@ FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates \
- && rm -rf /var/lib/apt/lists/* \
- && useradd --system --uid 10001 app
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY --from=builder /out/naderben /app/naderben
@@ -39,9 +38,14 @@ ENV RUST_LOG="info" \
     LEPTOS_SITE_PKG_DIR="pkg" \
     LEPTOS_SITE_ADDR="0.0.0.0:8080" \
     LEPTOS_RELOAD_PORT="3001" \
-    LEPTOS_ENV="PROD"
+    LEPTOS_ENV="PROD" \
+    DATABASE_URL="sqlite:///app/data/naderben.db"
+
+# SQLite-Datenbank (inkl. hochgeladener Bilder) – auf Railway hier ein Volume
+# mit Mount-Pfad /app/data anhängen, sonst gehen die Daten bei jedem Deploy verloren.
+# Railway-Volumes gehören root; daher läuft der Prozess ohne eigenen User.
+RUN mkdir -p /app/data
 
 # Railway setzt $PORT – main.rs bindet automatisch an 0.0.0.0:$PORT
 EXPOSE 8080
-USER app
 CMD ["/app/naderben"]

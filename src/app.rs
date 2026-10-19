@@ -2,17 +2,22 @@ use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, Link, Meta, MetaTags, Stylesheet, Title};
 use leptos_router::{
     components::{ParentRoute, Route, Router, Routes, A},
-    hooks::use_location,
-    path,
+    hooks::{use_location, use_navigate},
+    path, SsrMode,
 };
 
-use crate::pages::{
-    about::AboutPage,
-    contact::ContactPage,
-    home::HomePage,
-    portfolio::{CategoryOverview, CategoryPage, PhotosPage, PortfolioOverview, PortfolioPage, VideosPage},
+use crate::{
+    api::{get_site_data, current_user, Login, Logout},
+    content::{use_site, Site},
+    data::Category,
+    pages::{
+        about::AboutPage,
+        admin::{AccountPage, AdminHome, AdminLayout, ContentEditor, PortfolioEditor, RolesAdmin, UsersAdmin},
+        contact::ContactPage,
+        home::HomePage,
+        portfolio::{CategoryOverview, CategoryPage, PhotosPage, PortfolioOverview, PortfolioPage, VideosPage},
+    },
 };
-use crate::data::Category;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
@@ -42,6 +47,12 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
 pub fn App() -> impl IntoView {
     provide_meta_context();
 
+    // Inhalte, Portfolio und angemeldeter Benutzer – einmal laden, überall per use_site()
+    provide_context(Site {
+        data: Resource::new(|| (), |_| get_site_data()),
+        user: Resource::new(|| (), |_| current_user()),
+    });
+
     view! {
         <Stylesheet id="leptos" href="/pkg/naderben.css" />
         <Link rel="icon" type_="image/svg+xml" href="/favicon.svg" />
@@ -56,10 +67,11 @@ pub fn App() -> impl IntoView {
         <Router>
             <Header />
             <main class="min-h-[70vh]">
+                // SsrMode::Async: HTML erst senden, wenn die Inhalte aus der DB da sind (SEO)
                 <Routes fallback=NotFound>
-                    <Route path=path!("") view=HomePage />
-                    <Route path=path!("about") view=AboutPage />
-                    <ParentRoute path=path!("portfolio") view=PortfolioPage>
+                    <Route path=path!("") view=HomePage ssr=SsrMode::Async />
+                    <Route path=path!("about") view=AboutPage ssr=SsrMode::Async />
+                    <ParentRoute path=path!("portfolio") view=PortfolioPage ssr=SsrMode::Async>
                         <Route path=path!("") view=PortfolioOverview />
                         <ParentRoute path=path!(":kategorie") view=CategoryPage>
                             <Route path=path!("") view=CategoryOverview />
@@ -67,10 +79,20 @@ pub fn App() -> impl IntoView {
                             <Route path=path!("fotos") view=PhotosPage />
                         </ParentRoute>
                     </ParentRoute>
-                    <Route path=path!("contact") view=ContactPage />
+                    <Route path=path!("contact") view=ContactPage ssr=SsrMode::Async />
+                    <ParentRoute path=path!("admin") view=AdminLayout ssr=SsrMode::Async>
+                        <Route path=path!("") view=AdminHome />
+                        <Route path=path!("inhalte") view=ContentEditor />
+                        <Route path=path!("portfolio") view=PortfolioEditor />
+                        <Route path=path!("benutzer") view=UsersAdmin />
+                        <Route path=path!("rollen") view=RolesAdmin />
+                        <Route path=path!("konto") view=AccountPage />
+                    </ParentRoute>
                 </Routes>
             </main>
-            <Footer />
+            <Transition fallback=|| ()>
+                <Footer />
+            </Transition>
         </Router>
     }
 }
@@ -123,9 +145,12 @@ fn Header() -> impl IntoView {
 }
 
 const FOOTER_LINK: &str = "text-muted transition-colors hover:text-accent";
+const FOOTER_INPUT: &str = "w-full rounded-lg border border-line bg-bg-2 px-3 py-2 text-[0.9rem] text-ink placeholder:text-[#5f5c57] focus:border-accent focus:outline-none sm:w-52";
 
 #[component]
 fn Footer() -> impl IntoView {
+    let site = use_site();
+
     view! {
         <footer class="border-t border-line bg-bg pt-14">
             <div class="wrap grid gap-8 md:grid-cols-[2fr_1fr_1fr]">
@@ -133,7 +158,7 @@ fn Footer() -> impl IntoView {
                     <p class="mb-2.5 font-display text-xl font-extrabold tracking-[0.08em]">
                         "NADER" <span class="text-accent">"BEN"</span>
                     </p>
-                    <p class="text-muted">"Foto & Video aus Zürich – für Menschen, Marken und Momente."</p>
+                    <p class="text-muted">{move || site.text("footer.claim")}</p>
                 </div>
                 <nav class="flex flex-col gap-2">
                     <a class=FOOTER_LINK href="/about">"About"</a>
@@ -144,15 +169,97 @@ fn Footer() -> impl IntoView {
                     <a class=FOOTER_LINK href="/contact">"Contact"</a>
                 </nav>
                 <div class="flex flex-col gap-2">
-                    <a class=FOOTER_LINK href="https://instagram.com" target="_blank" rel="noopener">"Instagram"</a>
-                    <a class=FOOTER_LINK href="https://vimeo.com" target="_blank" rel="noopener">"Vimeo"</a>
-                    <a class=FOOTER_LINK href="https://youtube.com" target="_blank" rel="noopener">"YouTube"</a>
+                    <a class=FOOTER_LINK href=move || site.text("social.instagram") target="_blank" rel="noopener">"Instagram"</a>
+                    <a class=FOOTER_LINK href=move || site.text("social.vimeo") target="_blank" rel="noopener">"Vimeo"</a>
+                    <a class=FOOTER_LINK href=move || site.text("social.youtube") target="_blank" rel="noopener">"YouTube"</a>
                 </div>
             </div>
-            <div class="wrap mt-12 border-t border-line py-6 text-[0.85rem] text-muted">
-                "© 2026 Nader Ben. Alle Rechte vorbehalten."
+            <div class="wrap mt-12 flex flex-col gap-4 border-t border-line py-6 text-[0.85rem] text-muted md:flex-row md:items-center md:justify-between">
+                <span>"© 2026 Nader Ben. Alle Rechte vorbehalten."</span>
+                <FooterLogin />
             </div>
         </footer>
+    }
+}
+
+/// Anmeldung bzw. Konto-Links in der Fusszeile
+#[component]
+fn FooterLogin() -> impl IntoView {
+    let site = use_site();
+    let (open, set_open) = signal(false);
+    let login = ServerAction::<Login>::new();
+    let logout = ServerAction::<Logout>::new();
+    let navigate = use_navigate();
+    let location = use_location();
+
+    // Nach erfolgreicher Anmeldung: Benutzer neu laden, Formular schliessen
+    Effect::new(move |_| {
+        if let Some(Ok(_)) = login.value().get() {
+            set_open.set(false);
+            site.user.refetch();
+        }
+    });
+    // Nach dem Abmelden: Benutzer neu laden und die Verwaltung verlassen
+    Effect::new(move |_| {
+        if let Some(Ok(())) = logout.value().get() {
+            site.user.refetch();
+            if location.pathname.get_untracked().starts_with("/admin") {
+                navigate("/", Default::default());
+            }
+        }
+    });
+
+    let error = move || match login.value().get() {
+        Some(Err(ServerFnError::ServerError(msg))) => Some(msg),
+        Some(Err(e)) => Some(e.to_string()),
+        _ => None,
+    };
+
+    move || match site.current_user() {
+        Some(user) => view! {
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <span>
+                    "Angemeldet als " <strong class="text-ink">{user.name.clone()}</strong>
+                    " · " {user.role.clone()}
+                </span>
+                {if user.has_admin_access() {
+                    view! { <A href="/admin" attr:class="text-accent hover:underline">"Verwaltung"</A> }.into_any()
+                } else {
+                    view! { <A href="/admin/konto" attr:class="text-accent hover:underline">"Mein Konto"</A> }.into_any()
+                }}
+                <button class="underline-offset-4 hover:text-ink hover:underline" on:click=move |_| { logout.dispatch(Logout {}); }>
+                    "Abmelden"
+                </button>
+            </div>
+        }
+        .into_any(),
+        None => view! {
+            <div class="flex flex-col items-start gap-3 md:items-end">
+                <Show
+                    when=move || open.get()
+                    fallback=move || view! {
+                        <button class="underline-offset-4 hover:text-ink hover:underline" on:click=move |_| set_open.set(true)>
+                            "Anmelden"
+                        </button>
+                    }
+                >
+                    <ActionForm action=login attr:class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                        <input class=FOOTER_INPUT type="email" name="email" required autocomplete="username" placeholder="E-Mail" aria-label="E-Mail" />
+                        <input class=FOOTER_INPUT type="password" name="password" required autocomplete="current-password" placeholder="Passwort" aria-label="Passwort" />
+                        <div class="flex gap-2">
+                            <button type="submit" class="btn btn-primary px-4 py-2" disabled=move || login.pending().get()>
+                                {move || if login.pending().get() { "…" } else { "Anmelden" }}
+                            </button>
+                            <button type="button" class="px-2 hover:text-ink" aria-label="Abbrechen" on:click=move |_| set_open.set(false)>
+                                "✕"
+                            </button>
+                        </div>
+                    </ActionForm>
+                    {move || error().map(|msg| view! { <p class="mb-0 text-[#f4a49b]" role="alert">{msg}</p> })}
+                </Show>
+            </div>
+        }
+        .into_any(),
     }
 }
 
