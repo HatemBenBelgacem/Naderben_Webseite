@@ -2,7 +2,7 @@ use leptos::prelude::*;
 use leptos_meta::Title;
 use leptos_router::components::A;
 
-use crate::data::{PHOTOS, VIDEOS};
+use crate::data::{Category, PHOTOS, VIDEOS};
 
 /// Kachel-Positionen im Featured-Grid (Tailwind braucht vollständige Klassennamen)
 const FEATURED_SPANS: [&str; 4] = [
@@ -16,8 +16,9 @@ const MARQUEE: [&str; 6] = ["Hochzeiten", "Portraits", "Imagefilme", "Musikvideo
 
 #[component]
 pub fn HomePage() -> impl IntoView {
-    let featured = [PHOTOS[0], PHOTOS[6], PHOTOS[1], PHOTOS[8]];
-    let video = VIDEOS[0];
+    // Je ein Bild aus den vier Portfolio-Bereichen
+    let featured = [PHOTOS[0], PHOTOS[4], PHOTOS[8], PHOTOS[12]];
+    let video = Category::Firmenportrait.videos().next().copied().unwrap_or(VIDEOS[0]);
 
     view! {
         <Title text="" />
@@ -67,7 +68,7 @@ pub fn HomePage() -> impl IntoView {
                     <p class="eyebrow">"Ausgewählte Arbeiten"</p>
                     <h2 class="mb-0">"Ein Blick ins Portfolio"</h2>
                 </div>
-                <A href="/portfolio/fotos" attr:class="font-medium whitespace-nowrap text-accent">"Alle Fotos →"</A>
+                <A href="/portfolio" attr:class="font-medium whitespace-nowrap text-accent">"Zum Portfolio →"</A>
             </div>
             <div class="grid auto-rows-[160px] grid-cols-2 gap-4 md:auto-rows-[120px] md:grid-cols-12">
                 {featured
@@ -76,7 +77,7 @@ pub fn HomePage() -> impl IntoView {
                     .map(|(p, span)| {
                         view! {
                             <A
-                                href="/portfolio/fotos"
+                                href=format!("{}/fotos", p.category.href())
                                 attr:class=format!("group relative overflow-hidden rounded-card bg-surface {span}")
                             >
                                 <img
@@ -86,7 +87,7 @@ pub fn HomePage() -> impl IntoView {
                                     loading="lazy"
                                 />
                                 <div class="absolute inset-x-0 bottom-0 flex translate-y-2.5 flex-col bg-linear-to-t from-black/70 to-transparent px-5 py-[18px] opacity-0 transition duration-400 ease-soft group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
-                                    <span class="text-xs tracking-[0.15em] text-accent uppercase">{p.category}</span>
+                                    <span class="text-xs tracking-[0.15em] text-accent uppercase">{p.category.name()}</span>
                                     <strong>{p.title}</strong>
                                 </div>
                             </A>
@@ -98,7 +99,7 @@ pub fn HomePage() -> impl IntoView {
 
         <section class="wrap pb-[clamp(64px,10vw,120px)]">
             <A
-                href="/portfolio/videos"
+                href=format!("{}/videos", video.category.href())
                 attr:class="group relative block aspect-[4/3] overflow-hidden rounded-card bg-surface md:aspect-[21/9]"
             >
                 <img

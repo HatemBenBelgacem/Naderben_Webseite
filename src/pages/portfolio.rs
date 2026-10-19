@@ -1,39 +1,122 @@
 use leptos::{ev, prelude::*};
 use leptos_meta::Title;
-use leptos_router::components::{Outlet, A};
+use leptos_router::{
+    components::{Outlet, A},
+    hooks::use_params_map,
+};
 
-use crate::data::{Photo, Video, PHOTOS, PHOTO_CATEGORIES, VIDEOS, VIDEO_CATEGORIES};
+use crate::app::NotFound;
+use crate::data::{Category, Photo, Video, PHOTOS, VIDEOS};
 
-const TAB: &str = "rounded-full px-[1.3em] py-[0.55em] text-[0.95rem] text-muted transition-colors hover:text-ink aria-[current=page]:bg-ink aria-[current=page]:text-bg";
-const CHIP: &str = "rounded-full border px-[1.15em] py-[0.5em] text-[0.9rem] transition-all duration-250";
-const CHIP_ON: &str = "border-accent bg-accent text-accent-ink";
-const CHIP_OFF: &str = "border-line text-muted hover:border-ink/35 hover:text-ink";
-const MEDIA_IMG: &str = "size-full object-cover transition-transform duration-900 ease-soft group-hover:scale-105";
+const TAB: &str = "shrink-0 rounded-full px-[1.3em] py-[0.55em] text-[0.95rem] whitespace-nowrap text-muted transition-colors hover:text-ink aria-[current=page]:bg-ink aria-[current=page]:text-bg";
+const SUB_TAB: &str = "-mb-px border-b-2 border-transparent pb-3 text-muted transition-colors hover:text-ink aria-[current=page]:border-accent aria-[current=page]:text-ink";
 const SECTION_END: &str = "pb-[clamp(64px,10vw,120px)]";
 
 const LIGHTBOX: &str = "fixed inset-0 z-[100] flex animate-fade items-center justify-center bg-[rgb(5_5_6/0.94)] px-3 py-16 backdrop-blur-sm sm:px-[72px]";
 const LB_CLOSE: &str = "absolute top-5 right-6 size-11 rounded-full text-[1.4rem] transition-colors hover:bg-white/10";
 const LB_NAV: &str = "absolute bottom-3 size-[52px] rounded-full border border-line text-[2rem] leading-none transition-colors hover:bg-white/10 sm:top-1/2 sm:bottom-auto sm:-translate-y-1/2";
 
-/// Rahmen für alle Portfolio-Unterseiten (Übersicht, Videos, Fotos)
+/// "01 Video" / "04 Videos"
+fn count_label(n: usize, singular: &str, plural: &str) -> String {
+    format!("{n:02} {}", if n == 1 { singular } else { plural })
+}
+
+/// Kategorie aus dem URL-Segment `/portfolio/:kategorie`
+fn use_category() -> Memo<Option<Category>> {
+    let params = use_params_map();
+    Memo::new(move |_| params.read().get("kategorie").as_deref().and_then(Category::from_slug))
+}
+
+/// Rahmen für das ganze Portfolio: Titel + Navigation über die vier Bereiche
 #[component]
 pub fn PortfolioPage() -> impl IntoView {
     view! {
         <section class="wrap page-hero">
             <p class="eyebrow">"Portfolio"</p>
             <h1 class="max-w-[18ch]">"Arbeiten"</h1>
-            <nav class="mt-6 inline-flex gap-1 rounded-full border border-line bg-bg-2 p-[5px]" aria-label="Portfolio-Bereiche">
+            <nav
+                class="mt-6 inline-flex max-w-full gap-1 overflow-x-auto rounded-full border border-line bg-bg-2 p-[5px] [scrollbar-width:none]"
+                aria-label="Portfolio-Bereiche"
+            >
                 <A href="/portfolio" exact=true attr:class=TAB>"Übersicht"</A>
-                <A href="/portfolio/videos" attr:class=TAB>"Videos"</A>
-                <A href="/portfolio/fotos" attr:class=TAB>"Fotos"</A>
+                {Category::ALL
+                    .map(|c| view! { <A href=c.href() attr:class=TAB>{c.name()}</A> })
+                    .collect_view()}
             </nav>
         </section>
         <Outlet />
     }
 }
 
+/// `/portfolio` – die vier Bereiche als Karten
 #[component]
-fn ProductCard(href: &'static str, image: String, count: String, title: &'static str, text: &'static str, cta: &'static str) -> impl IntoView {
+pub fn PortfolioOverview() -> impl IntoView {
+    view! {
+        <Title text="Portfolio" />
+        <section class=format!("wrap grid gap-6 md:grid-cols-2 {SECTION_END}")>
+            {Category::ALL.map(|c| view! { <CategoryCard category=c /> }).collect_view()}
+        </section>
+    }
+}
+
+#[component]
+fn CategoryCard(category: Category) -> impl IntoView {
+    let counts = format!(
+        "{} · {}",
+        count_label(category.videos().count(), "Video", "Videos"),
+        count_label(category.photos().count(), "Foto", "Fotos")
+    );
+
+    view! {
+        <article class="group flex flex-col overflow-hidden rounded-card border border-line bg-surface transition-colors hover:border-accent/50">
+            <A href=category.href() attr:class="block overflow-hidden">
+                <img
+                    class="aspect-[16/10] w-full object-cover transition-transform duration-900 ease-soft group-hover:scale-105"
+                    src=category.cover()
+                    alt=category.name()
+                    loading="lazy"
+                />
+            </A>
+            <div class="flex flex-1 flex-col px-[30px] pt-7 pb-8">
+                <span class="text-[0.8rem] tracking-[0.15em] text-accent uppercase">{counts}</span>
+                <h2 class="mb-[0.3em]">
+                    <A href=category.href()>{category.name()}</A>
+                </h2>
+                <p class="text-muted">{category.description()}</p>
+                <div class="mt-auto flex flex-wrap gap-3">
+                    <A href=format!("{}/videos", category.href()) attr:class="btn btn-ghost">"Videos"</A>
+                    <A href=format!("{}/fotos", category.href()) attr:class="btn btn-primary">"Fotos"</A>
+                </div>
+            </div>
+        </article>
+    }
+}
+
+/// Rahmen für einen Bereich: Name, Beschreibung und Unterteilung Videos / Fotos
+#[component]
+pub fn CategoryPage() -> impl IntoView {
+    let category = use_category();
+
+    move || match category.get() {
+        None => view! { <NotFound /> }.into_any(),
+        Some(c) => view! {
+            <section class="wrap">
+                <h2 class="mb-2">{c.name()}</h2>
+                <p class="lead">{c.description()}</p>
+                <nav class="mt-6 mb-8 flex gap-6 border-b border-line" aria-label=format!("{} – Bereiche", c.name())>
+                    <A href=c.href() exact=true attr:class=SUB_TAB>"Übersicht"</A>
+                    <A href=format!("{}/videos", c.href()) attr:class=SUB_TAB>"Videos"</A>
+                    <A href=format!("{}/fotos", c.href()) attr:class=SUB_TAB>"Fotos"</A>
+                </nav>
+            </section>
+            <Outlet />
+        }
+        .into_any(),
+    }
+}
+
+#[component]
+fn ProductCard(href: String, image: String, count: String, title: &'static str, text: &'static str, cta: &'static str) -> impl IntoView {
     view! {
         <A
             href=href
@@ -42,7 +125,7 @@ fn ProductCard(href: &'static str, image: String, count: String, title: &'static
             <img class="aspect-[16/10] w-full object-cover transition-transform duration-900 ease-soft group-hover:scale-105" src=image alt=title loading="lazy" />
             <div class="px-[30px] pt-7 pb-8">
                 <span class="text-[0.8rem] tracking-[0.15em] text-accent uppercase">{count}</span>
-                <h2 class="mb-[0.3em]">{title}</h2>
+                <h3 class="mb-[0.3em] text-[clamp(1.5rem,3vw,2.2rem)]">{title}</h3>
                 <p class="text-muted">{text}</p>
                 <span class="font-medium text-accent">{cta}</span>
             </div>
@@ -50,54 +133,46 @@ fn ProductCard(href: &'static str, image: String, count: String, title: &'static
     }
 }
 
+/// `/portfolio/:kategorie` – Einstieg in Videos und Fotos des Bereichs
 #[component]
-pub fn PortfolioOverview() -> impl IntoView {
-    view! {
-        <Title text="Portfolio" />
-        <section class=format!("wrap grid gap-6 md:grid-cols-2 {SECTION_END}")>
-            <ProductCard
-                href="/portfolio/videos"
-                image=VIDEOS[1].thumb()
-                count=format!("{:02} Filme", VIDEOS.len())
-                title="Videos"
-                text="Imagefilme, Hochzeitsfilme, Musikvideos und Event-Recaps – vom Konzept bis zum Color Grading."
-                cta="Filme ansehen →"
-            />
-            <ProductCard
-                href="/portfolio/fotos"
-                image=PHOTOS[2].thumb()
-                count=format!("{:02} Bilder", PHOTOS.len())
-                title="Fotos"
-                text="Portraits, Hochzeiten, Landschaften und Events – zeitlos bearbeitet, mit Liebe zum Licht."
-                cta="Galerie öffnen →"
-            />
-        </section>
+pub fn CategoryOverview() -> impl IntoView {
+    let category = use_category();
+
+    move || {
+        category.get().map(|c| {
+            let video_cover = c.videos().next().map(|v| v.thumb()).unwrap_or_else(|| c.cover());
+            let photo_cover = c.photos().nth(1).or(c.photos().next()).map(|p| p.thumb()).unwrap_or_default();
+            view! {
+                <Title text=c.name() />
+                <section class=format!("wrap grid gap-6 md:grid-cols-2 {SECTION_END}")>
+                    <ProductCard
+                        href=format!("{}/videos", c.href())
+                        image=video_cover
+                        count=count_label(c.videos().count(), "Film", "Filme")
+                        title="Videos"
+                        text="Bewegte Bilder mit Ton, Rhythmus und Emotion – vom Konzept bis zum Color Grading."
+                        cta="Filme ansehen →"
+                    />
+                    <ProductCard
+                        href=format!("{}/fotos", c.href())
+                        image=photo_cover
+                        count=count_label(c.photos().count(), "Bild", "Bilder")
+                        title="Fotos"
+                        text="Ausgewählte Bilder – zeitlos bearbeitet, mit Liebe zum Licht."
+                        cta="Galerie öffnen →"
+                    />
+                </section>
+            }
+        })
     }
 }
 
 #[component]
-fn CategoryFilter(
-    categories: &'static [&'static str],
-    active: ReadSignal<&'static str>,
-    set_active: WriteSignal<&'static str>,
-) -> impl IntoView {
+fn EmptyState(text: &'static str) -> impl IntoView {
     view! {
-        <div class="mb-8 flex flex-wrap gap-2" role="group" aria-label="Kategorie filtern">
-            {categories
-                .iter()
-                .map(|&c| {
-                    view! {
-                        <button
-                            class=move || format!("{CHIP} {}", if active.get() == c { CHIP_ON } else { CHIP_OFF })
-                            aria-pressed=move || (active.get() == c).to_string()
-                            on:click=move |_| set_active.set(c)
-                        >
-                            {c}
-                        </button>
-                    }
-                })
-                .collect_view()}
-        </div>
+        <p class=format!("rounded-card border border-dashed border-line px-6 py-10 text-center text-muted {SECTION_END}")>
+            {text}
+        </p>
     }
 }
 
@@ -112,19 +187,18 @@ fn use_overlay_keys(on_close: impl Fn() + 'static, on_step: impl Fn(isize) + 'st
     on_cleanup(move || handle.remove());
 }
 
+/// `/portfolio/:kategorie/fotos`
 #[component]
 pub fn PhotosPage() -> impl IntoView {
-    let (filter, set_filter) = signal("Alle");
+    let category = use_category();
     let (selected, set_selected) = signal(None::<usize>);
 
-    let visible = Memo::new(move |_| {
-        let f = filter.get();
-        PHOTOS
-            .iter()
-            .enumerate()
-            .filter(|(_, p)| f == "Alle" || p.category == f)
-            .map(|(i, _)| i)
-            .collect::<Vec<_>>()
+    let visible = Memo::new(move |_| category.get().map(Category::photo_indices).unwrap_or_default());
+
+    // Beim Wechsel des Bereichs eine offene Lightbox schliessen
+    Effect::new(move |_| {
+        category.track();
+        set_selected.set(None);
     });
 
     let step = move |dir: isize| {
@@ -140,39 +214,43 @@ pub fn PhotosPage() -> impl IntoView {
     use_overlay_keys(move || set_selected.set(None), step);
 
     view! {
-        <Title text="Fotos" />
+        <Title text=move || category.get().map(|c| format!("Fotos · {}", c.name())).unwrap_or_default() />
         <section class="wrap">
-            <CategoryFilter categories=&PHOTO_CATEGORIES active=filter set_active=set_filter />
-            <div class=format!("columns-[3_320px] gap-4 {SECTION_END}")>
-                <For
-                    each=move || visible.get()
-                    key=|i| *i
-                    children=move |i| {
-                        let p: Photo = PHOTOS[i];
-                        view! {
-                            <button
-                                class="group relative mb-4 block w-full animate-reveal break-inside-avoid overflow-hidden rounded-card bg-surface text-left [animation-duration:0.6s]"
-                                on:click=move |_| set_selected.set(Some(i))
-                            >
-                                <img
-                                    class="h-auto w-full transition-transform duration-900 ease-soft group-hover:scale-105"
-                                    src=p.thumb()
-                                    alt=p.title
-                                    loading="lazy"
-                                    width=p.width * 200
-                                    height=p.height * 200
-                                />
-                                <span class="absolute inset-x-0 bottom-0 flex flex-col bg-linear-to-t from-black/75 to-transparent px-[18px] py-4 font-display font-semibold opacity-0 transition-opacity duration-350 group-hover:opacity-100 group-focus-visible:opacity-100">
-                                    <small class="font-body text-[0.72rem] font-medium tracking-[0.15em] text-accent uppercase">
-                                        {p.category}
-                                    </small>
-                                    {p.title}
-                                </span>
-                            </button>
+            <Show
+                when=move || !visible.get().is_empty()
+                fallback=|| view! { <EmptyState text="In diesem Bereich gibt es noch keine Fotos." /> }
+            >
+                <div class=format!("columns-[3_320px] gap-4 {SECTION_END}")>
+                    <For
+                        each=move || visible.get()
+                        key=|i| *i
+                        children=move |i| {
+                            let p: Photo = PHOTOS[i];
+                            view! {
+                                <button
+                                    class="group relative mb-4 block w-full animate-reveal break-inside-avoid overflow-hidden rounded-card bg-surface text-left [animation-duration:0.6s]"
+                                    on:click=move |_| set_selected.set(Some(i))
+                                >
+                                    <img
+                                        class="h-auto w-full transition-transform duration-900 ease-soft group-hover:scale-105"
+                                        src=p.thumb()
+                                        alt=p.title
+                                        loading="lazy"
+                                        width=p.width * 200
+                                        height=p.height * 200
+                                    />
+                                    <span class="absolute inset-x-0 bottom-0 flex flex-col bg-linear-to-t from-black/75 to-transparent px-[18px] py-4 font-display font-semibold opacity-0 transition-opacity duration-350 group-hover:opacity-100 group-focus-visible:opacity-100">
+                                        <small class="font-body text-[0.72rem] font-medium tracking-[0.15em] text-accent uppercase">
+                                            {p.category.name()}
+                                        </small>
+                                        {p.title}
+                                    </span>
+                                </button>
+                            }
                         }
-                    }
-                />
-            </div>
+                    />
+                </div>
+            </Show>
         </section>
 
         <Show when=move || selected.get().is_some()>
@@ -203,7 +281,7 @@ pub fn PhotosPage() -> impl IntoView {
                                     <figcaption class="mt-3.5 text-muted">
                                         <strong class="text-ink">{p.title}</strong>
                                         " · "
-                                        {p.category}
+                                        {p.category.name()}
                                     </figcaption>
                                 </figure>
                                 <button
@@ -224,59 +302,74 @@ pub fn PhotosPage() -> impl IntoView {
     }
 }
 
+/// `/portfolio/:kategorie/videos`
 #[component]
 pub fn VideosPage() -> impl IntoView {
-    let (filter, set_filter) = signal("Alle");
+    let category = use_category();
     let (playing, set_playing) = signal(None::<usize>);
 
     let visible = Memo::new(move |_| {
-        let f = filter.get();
+        let Some(c) = category.get() else { return Vec::new() };
         VIDEOS
             .iter()
             .enumerate()
-            .filter(|(_, v)| f == "Alle" || v.category == f)
+            .filter(|(_, v)| v.category == c)
             .map(|(i, _)| i)
             .collect::<Vec<_>>()
+    });
+
+    Effect::new(move |_| {
+        category.track();
+        set_playing.set(None);
     });
 
     use_overlay_keys(move || set_playing.set(None), |_| {});
 
     view! {
-        <Title text="Videos" />
+        <Title text=move || category.get().map(|c| format!("Videos · {}", c.name())).unwrap_or_default() />
         <section class="wrap">
-            <CategoryFilter categories=&VIDEO_CATEGORIES active=filter set_active=set_filter />
-            <div class=format!("grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(340px,1fr))] {SECTION_END}")>
-                <For
-                    each=move || visible.get()
-                    key=|i| *i
-                    children=move |i| {
-                        let v: Video = VIDEOS[i];
-                        view! {
-                            <button
-                                class="group animate-reveal text-left [animation-duration:0.6s]"
-                                on:click=move |_| set_playing.set(Some(i))
-                            >
-                                <div class="relative aspect-video overflow-hidden rounded-card bg-surface">
-                                    <img class=format!("{MEDIA_IMG} brightness-80") src=v.thumb() alt=v.title loading="lazy" />
-                                    <span
-                                        class="play-btn absolute top-1/2 left-1/2 size-16 -translate-1/2 opacity-90 transition-transform duration-400 ease-soft group-hover:scale-112"
-                                        aria-hidden="true"
-                                    ></span>
-                                    <span class="absolute right-3 bottom-3 rounded-md bg-black/70 px-[0.6em] py-[0.15em] text-[0.8rem]">
-                                        {v.duration}
-                                    </span>
-                                </div>
-                                <div class="pt-3.5">
-                                    <small class="text-xs tracking-[0.12em] text-muted uppercase">
-                                        {v.category} " · " {v.client}
-                                    </small>
-                                    <h3 class="mt-[0.2em] mb-0">{v.title}</h3>
-                                </div>
-                            </button>
+            <Show
+                when=move || !visible.get().is_empty()
+                fallback=|| view! { <EmptyState text="In diesem Bereich gibt es noch keine Videos." /> }
+            >
+                <div class=format!("grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-[repeat(auto-fill,minmax(340px,1fr))] {SECTION_END}")>
+                    <For
+                        each=move || visible.get()
+                        key=|i| *i
+                        children=move |i| {
+                            let v: Video = VIDEOS[i];
+                            view! {
+                                <button
+                                    class="group animate-reveal text-left [animation-duration:0.6s]"
+                                    on:click=move |_| set_playing.set(Some(i))
+                                >
+                                    <div class="relative aspect-video overflow-hidden rounded-card bg-surface">
+                                        <img
+                                            class="size-full object-cover brightness-80 transition-transform duration-900 ease-soft group-hover:scale-105"
+                                            src=v.thumb()
+                                            alt=v.title
+                                            loading="lazy"
+                                        />
+                                        <span
+                                            class="play-btn absolute top-1/2 left-1/2 size-16 -translate-1/2 opacity-90 transition-transform duration-400 ease-soft group-hover:scale-112"
+                                            aria-hidden="true"
+                                        ></span>
+                                        <span class="absolute right-3 bottom-3 rounded-md bg-black/70 px-[0.6em] py-[0.15em] text-[0.8rem]">
+                                            {v.duration}
+                                        </span>
+                                    </div>
+                                    <div class="pt-3.5">
+                                        <small class="text-xs tracking-[0.12em] text-muted uppercase">
+                                            {v.category.name()} " · " {v.client}
+                                        </small>
+                                        <h3 class="mt-[0.2em] mb-0">{v.title}</h3>
+                                    </div>
+                                </button>
+                            }
                         }
-                    }
-                />
-            </div>
+                    />
+                </div>
+            </Show>
         </section>
 
         <Show when=move || playing.get().is_some()>

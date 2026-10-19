@@ -10,8 +10,9 @@ use crate::pages::{
     about::AboutPage,
     contact::ContactPage,
     home::HomePage,
-    portfolio::{PhotosPage, PortfolioOverview, PortfolioPage, VideosPage},
+    portfolio::{CategoryOverview, CategoryPage, PhotosPage, PortfolioOverview, PortfolioPage, VideosPage},
 };
+use crate::data::Category;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
     view! {
@@ -60,8 +61,11 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("about") view=AboutPage />
                     <ParentRoute path=path!("portfolio") view=PortfolioPage>
                         <Route path=path!("") view=PortfolioOverview />
-                        <Route path=path!("videos") view=VideosPage />
-                        <Route path=path!("fotos") view=PhotosPage />
+                        <ParentRoute path=path!(":kategorie") view=CategoryPage>
+                            <Route path=path!("") view=CategoryOverview />
+                            <Route path=path!("videos") view=VideosPage />
+                            <Route path=path!("fotos") view=PhotosPage />
+                        </ParentRoute>
                     </ParentRoute>
                     <Route path=path!("contact") view=ContactPage />
                 </Routes>
@@ -133,8 +137,10 @@ fn Footer() -> impl IntoView {
                 </div>
                 <nav class="flex flex-col gap-2">
                     <a class=FOOTER_LINK href="/about">"About"</a>
-                    <a class=FOOTER_LINK href="/portfolio/fotos">"Fotos"</a>
-                    <a class=FOOTER_LINK href="/portfolio/videos">"Videos"</a>
+                    <a class=FOOTER_LINK href="/portfolio">"Portfolio"</a>
+                    {Category::ALL
+                        .map(|c| view! { <a class=format!("{FOOTER_LINK} pl-3") href=c.href()>{c.name()}</a> })
+                        .collect_view()}
                     <a class=FOOTER_LINK href="/contact">"Contact"</a>
                 </nav>
                 <div class="flex flex-col gap-2">
@@ -151,7 +157,7 @@ fn Footer() -> impl IntoView {
 }
 
 #[component]
-fn NotFound() -> impl IntoView {
+pub fn NotFound() -> impl IntoView {
     #[cfg(feature = "ssr")]
     {
         if let Some(resp) = use_context::<leptos_axum::ResponseOptions>() {
