@@ -30,7 +30,7 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
                 <link
                     rel="stylesheet"
-                    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Syne:wght@500;600;700;800&display=swap"
+                    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Roboto+Condensed:wght@300;400;700;800&display=swap"
                 />
                 <AutoReload options=options.clone() />
                 <HydrationScripts options />
@@ -97,7 +97,7 @@ pub fn App() -> impl IntoView {
     }
 }
 
-const NAV_LINK: &str = "relative text-muted transition-colors hover:text-ink aria-[current=page]:text-ink md:after:absolute md:after:inset-x-0 md:after:-bottom-1.5 md:after:h-px md:after:origin-left md:after:scale-x-0 md:after:bg-accent md:after:transition-transform md:after:duration-350 md:after:ease-soft md:hover:after:scale-x-100 md:aria-[current=page]:after:scale-x-100";
+const NAV_LINK: &str = "relative font-medium uppercase text-ink/70 transition-colors hover:text-ink aria-[current=page]:text-ink md:after:absolute md:after:inset-x-0 md:after:-bottom-1.5 md:after:h-[3px] md:after:origin-left md:after:scale-x-0 md:after:bg-accent md:after:transition-transform md:after:duration-350 md:after:ease-soft md:hover:after:scale-x-100 md:aria-[current=page]:after:scale-x-100";
 
 #[component]
 fn Header() -> impl IntoView {
@@ -112,13 +112,13 @@ fn Header() -> impl IntoView {
 
     view! {
         <header
-            class="group fixed inset-x-0 top-0 z-50 h-[76px] border-b border-line bg-linear-to-b from-bg/85 to-bg/55 backdrop-blur-[14px]"
+            class="group fixed inset-x-0 top-0 z-50 h-[76px] border-b-2 border-ink bg-bg/90 backdrop-blur-[10px]"
             class:menu-open=open
         >
             <div class="wrap flex h-full items-center justify-between">
-                <A href="/" attr:class="font-display text-xl font-extrabold tracking-[0.08em]">
+                <A href="/" attr:class="font-display text-[1.6rem] leading-none font-extrabold tracking-[-0.02em] uppercase">
                     "NADER"
-                    <span class="text-accent">"BEN"</span>
+                    <span class="ml-0.5 bg-accent px-1">"BEN"</span>
                 </A>
                 <button
                     class="relative z-10 size-10 md:hidden"
@@ -134,7 +134,7 @@ fn Header() -> impl IntoView {
                     <A href="/portfolio" attr:class=NAV_LINK>"Portfolio"</A>
                     <A
                         href="/contact"
-                        attr:class="rounded-full bg-accent px-[1.2em] py-[0.55em] font-body text-base text-accent-ink transition-colors hover:bg-accent-hover aria-[current=page]:bg-accent-hover md:text-[0.95rem]"
+                        attr:class="border-2 border-ink bg-accent px-[1.1em] py-[0.45em] font-body text-base font-medium text-accent-ink uppercase transition-colors hover:bg-ink hover:text-bg aria-[current=page]:bg-ink aria-[current=page]:text-bg md:text-[0.9rem]"
                     >
                         "Contact"
                     </A>
@@ -144,21 +144,21 @@ fn Header() -> impl IntoView {
     }
 }
 
-const FOOTER_LINK: &str = "text-muted transition-colors hover:text-accent";
-const DIALOG_INPUT: &str = "w-full rounded-xl border border-line bg-bg px-3.5 py-2.5 text-ink placeholder:text-[#5f5c57] transition focus:border-accent focus:ring-[3px] focus:ring-accent/20 focus:outline-none";
+const FOOTER_LINK: &str = "text-white/70 transition-colors hover:text-bg";
+const DIALOG_INPUT: &str = "w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-ink placeholder:text-black/35 transition focus:border-accent focus:ring-[3px] focus:ring-accent/20 focus:outline-none";
 
 #[component]
 fn Footer() -> impl IntoView {
     let site = use_site();
 
     view! {
-        <footer class="border-t border-line bg-bg pt-14">
+        <footer class="bg-ink pt-16 text-white">
             <div class="wrap grid gap-8 sm:grid-cols-2 md:grid-cols-[2fr_1fr_1fr_1fr]">
                 <div class="sm:col-span-2 md:col-span-1">
-                    <p class="mb-2.5 font-display text-xl font-extrabold tracking-[0.08em]">
-                        "NADER" <span class="text-accent">"BEN"</span>
+                    <p class="mb-3 font-display text-[clamp(3rem,7vw,5.5rem)] leading-[0.8] font-extrabold tracking-[-0.03em] text-bg uppercase">
+                        "NADER" <br /> <span class="text-accent">"BEN"</span>
                     </p>
-                    <p class="text-muted">{move || site.text("footer.claim")}</p>
+                    <p class="max-w-[34ch] text-white/60">{move || site.text("footer.claim")}</p>
                 </div>
                 <nav class="flex flex-col gap-2">
                     <a class=FOOTER_LINK href="/about">"About"</a>
@@ -175,7 +175,7 @@ fn Footer() -> impl IntoView {
                 </div>
                 <FooterAccount />
             </div>
-            <div class="wrap mt-12 border-t border-line py-6 text-[0.85rem] text-muted">
+            <div class="wrap mt-14 border-t border-white/15 py-6 text-[0.8rem] text-white/50 uppercase">
                 "© 2026 Nader Ben. Alle Rechte vorbehalten."
             </div>
         </footer>
@@ -218,8 +218,8 @@ fn FooterAccount() -> impl IntoView {
         <div class="flex flex-col gap-2">
             {move || match site.current_user() {
                 Some(user) => view! {
-                    <span class="text-[0.85rem] text-muted">
-                        "Angemeldet als " <strong class="font-medium text-ink">{user.name.clone()}</strong>
+                    <span class="text-[0.85rem] text-white/50">
+                        "Angemeldet als " <strong class="font-medium text-white">{user.name.clone()}</strong>
                     </span>
                     {if user.has_admin_access() {
                         view! { <A href="/admin" attr:class=FOOTER_LINK>"Verwaltung"</A> }.into_any()
@@ -279,7 +279,7 @@ fn LoginDialog(open: RwSignal<bool>, login: ServerAction<Login>) -> impl IntoVie
     view! {
         <Show when=move || open.get()>
             <div
-                class="fixed inset-0 z-[100] flex animate-fade items-center justify-center bg-[rgb(5_5_6/0.85)] px-4 backdrop-blur-sm"
+                class="fixed inset-0 z-[100] flex animate-fade items-center justify-center bg-[rgb(5_5_6/0.82)] px-4 backdrop-blur-sm"
                 on:click=move |_| open.set(false)
             >
                 <div
@@ -308,7 +308,7 @@ fn LoginDialog(open: RwSignal<bool>, login: ServerAction<Login>) -> impl IntoVie
                             <input class=DIALOG_INPUT type="password" name="password" required autocomplete="current-password" />
                         </label>
                         {move || error().map(|msg| view! {
-                            <p class="mb-0 rounded-xl bg-[rgb(230_100_90/0.12)] px-3.5 py-2.5 text-[0.9rem] text-[#f4a49b]" role="alert">{msg}</p>
+                            <p class="mb-0 rounded-xl bg-danger/10 px-3.5 py-2.5 text-[0.9rem] text-danger" role="alert">{msg}</p>
                         })}
                         <button type="submit" class="btn btn-primary mt-1 justify-center" disabled=move || login.pending().get()>
                             {move || if login.pending().get() { "Wird geprüft …" } else { "Anmelden" }}

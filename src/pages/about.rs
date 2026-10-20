@@ -18,13 +18,16 @@ pub fn AboutPage() -> impl IntoView {
         </section>
 
         <section class="wrap grid items-start gap-[clamp(32px,6vw,96px)] md:grid-cols-[5fr_6fr]">
-            <figure class="md:sticky md:top-[100px]">
+            <figure class="group relative md:sticky md:top-[100px]">
+                <span class="tape -top-3 left-1/3 z-10 rotate-3"></span>
+                <div class="paper-shadow -rotate-2 transition-transform duration-500 group-hover:rotate-0">
                 <img
-                    class="aspect-[4/5] w-full rounded-card object-cover"
+                    class="torn photo-bw aspect-[4/5] w-full object-cover"
                     src=t("about.image")
                     alt=t("about.caption")
                 />
-                <figcaption class="mt-3 text-[0.85rem] text-muted">{t("about.caption")}</figcaption>
+                </div>
+                <figcaption class="mt-5 inline-block rotate-1 bg-ink px-2 py-1 text-[0.8rem] font-medium text-bg uppercase">{t("about.caption")}</figcaption>
             </figure>
             <div class="text-body">
                 <p class="lead">{t("about.lead")}</p>
@@ -36,7 +39,7 @@ pub fn AboutPage() -> impl IntoView {
                             .into_iter()
                             .map(|g| {
                                 view! {
-                                    <span class="rounded-full border border-line px-4 py-1.5 text-[0.85rem] text-muted">
+                                    <span class="border-2 border-ink bg-zine px-3 py-1 text-[0.8rem] font-medium uppercase">
                                         {g}
                                     </span>
                                 }
@@ -55,8 +58,8 @@ pub fn AboutPage() -> impl IntoView {
                     .map(|n| {
                         let (title, text) = (format!("about.service{n}.title"), format!("about.service{n}.text"));
                         view! {
-                            <article class="rounded-card border border-line bg-bg-2 p-7 transition duration-300 ease-soft hover:-translate-y-1 hover:border-accent/50">
-                                <span class="mb-10 block font-display text-accent">{format!("{n:02}")}</span>
+                            <article class="border-2 border-ink bg-bg-2 p-7 transition duration-300 ease-soft hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[6px_6px_0_var(--color-ink)]">
+                                <span class="mb-10 inline-block bg-accent px-2 font-display text-2xl font-bold">{format!("{n:02}")}</span>
                                 <h3>{move || site.text(&title)}</h3>
                                 <p class="mb-0 text-[0.95rem] text-muted">{move || site.text(&text)}</p>
                             </article>
@@ -74,8 +77,8 @@ pub fn AboutPage() -> impl IntoView {
                     .map(|n| {
                         let (title, text) = (format!("about.step{n}.title"), format!("about.step{n}.text"));
                         view! {
-                            <li class="border-t border-line pt-6">
-                                <span class="mb-2.5 block font-display text-[2.6rem] leading-none font-bold text-transparent [-webkit-text-stroke:1px_var(--color-muted)]">
+                            <li class="border-t-2 border-ink pt-6">
+                                <span class="mb-3 block font-display text-[4rem] leading-none font-bold text-transparent [-webkit-text-stroke:1.5px_var(--color-ink)]">
                                     {format!("{n:02}")}
                                 </span>
                                 <h3>{move || site.text(&title)}</h3>
@@ -89,10 +92,10 @@ pub fn AboutPage() -> impl IntoView {
 
         <section class="wrap section-y pt-0">
             <blockquote class="text-center">
-                <p class="mx-auto mb-6 max-w-[30ch] font-display text-[clamp(1.5rem,3.2vw,2.4rem)] leading-tight">
+                <p class="mx-auto mb-8 max-w-[24ch] font-display text-[clamp(2rem,4.6vw,3.8rem)] leading-[0.95] font-bold tracking-[-0.03em] uppercase">
                     {t("about.quote")}
                 </p>
-                <cite class="text-accent not-italic">{t("about.quote.author")}</cite>
+                <cite class="highlight text-[0.9rem] font-medium uppercase not-italic">{t("about.quote.author")}</cite>
             </blockquote>
         </section>
 

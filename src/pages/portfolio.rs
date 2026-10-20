@@ -5,15 +5,16 @@ use leptos_router::{
     hooks::use_params_map,
 };
 
+use super::zine::BgWords;
 use crate::app::NotFound;
 use crate::content::{use_site, Site};
 use crate::data::{Category, PhotoItem, VideoItem};
 
-const TAB: &str = "shrink-0 rounded-full px-[1.3em] py-[0.55em] text-[0.95rem] whitespace-nowrap text-muted transition-colors hover:text-ink aria-[current=page]:bg-ink aria-[current=page]:text-bg";
-const SUB_TAB: &str = "-mb-px border-b-2 border-transparent pb-3 text-muted transition-colors hover:text-ink aria-[current=page]:border-accent aria-[current=page]:text-ink";
+const TAB: &str = "shrink-0 px-[1.2em] py-[0.5em] text-[0.9rem] font-medium whitespace-nowrap uppercase text-ink/70 transition-colors hover:text-ink aria-[current=page]:bg-ink aria-[current=page]:text-bg";
+const SUB_TAB: &str = "-mb-[2px] border-b-4 border-transparent pb-2 font-medium uppercase text-ink/60 transition-colors hover:text-ink aria-[current=page]:border-accent aria-[current=page]:text-ink";
 const SECTION_END: &str = "pb-[clamp(64px,10vw,120px)]";
 
-const LIGHTBOX: &str = "fixed inset-0 z-[100] flex animate-fade items-center justify-center bg-[rgb(5_5_6/0.94)] px-3 py-16 backdrop-blur-sm sm:px-[72px]";
+const LIGHTBOX: &str = "fixed inset-0 z-[100] flex animate-fade items-center justify-center bg-[rgb(5_5_6/0.94)] text-white px-3 py-16 backdrop-blur-sm sm:px-[72px]";
 const LB_CLOSE: &str = "absolute top-5 right-6 size-11 rounded-full text-[1.4rem] transition-colors hover:bg-white/10";
 const LB_NAV: &str = "absolute bottom-3 size-[52px] rounded-full border border-line text-[2rem] leading-none transition-colors hover:bg-white/10 sm:top-1/2 sm:bottom-auto sm:-translate-y-1/2";
 
@@ -38,11 +39,13 @@ pub fn PortfolioPage() -> impl IntoView {
     let site = use_site();
     view! {
         <Transition fallback=|| ()>
-        <section class="wrap page-hero">
+        <section class="relative overflow-hidden">
+            <BgWords words=Signal::derive(|| Category::ALL.map(|c| c.name().to_string()).to_vec()) rows=3 />
+            <div class="wrap page-hero relative">
             <p class="eyebrow">"Portfolio"</p>
             <h1 class="max-w-[18ch]">{move || site.text("portfolio.title")}</h1>
             <nav
-                class="mt-6 inline-flex max-w-full gap-1 overflow-x-auto rounded-full border border-line bg-bg-2 p-[5px] [scrollbar-width:none]"
+                class="mt-6 inline-flex max-w-full gap-1 overflow-x-auto border-2 border-ink bg-bg-2 p-1 [scrollbar-width:none]"
                 aria-label="Portfolio-Bereiche"
             >
                 <A href="/portfolio" exact=true attr:class=TAB>"Übersicht"</A>
@@ -50,6 +53,7 @@ pub fn PortfolioPage() -> impl IntoView {
                     .map(|c| view! { <A href=c.href() attr:class=TAB>{c.name()}</A> })
                     .collect_view()}
             </nav>
+            </div>
         </section>
         <Outlet />
         </Transition>
@@ -81,19 +85,19 @@ fn CategoryCard(category: Category) -> impl IntoView {
     };
 
     view! {
-        <article class="group flex flex-col overflow-hidden rounded-card border border-line bg-surface transition-colors hover:border-accent/50">
-            <A href=category.href() attr:class="block overflow-hidden">
+        <article class="group flex flex-col border-2 border-ink bg-bg-2 transition-shadow duration-300 hover:shadow-[8px_8px_0_var(--color-ink)]">
+            <A href=category.href() attr:class="block overflow-hidden border-b-2 border-ink">
                 <img
-                    class="aspect-[16/10] w-full object-cover transition-transform duration-900 ease-soft group-hover:scale-105"
+                    class="photo-bw aspect-[16/10] w-full object-cover group-hover:scale-105"
                     src=move || site.with_data(|d| d.cover(category))
                     alt=category.name()
                     loading="lazy"
                 />
             </A>
             <div class="flex flex-1 flex-col px-[30px] pt-7 pb-8">
-                <span class="text-[0.8rem] tracking-[0.15em] text-accent uppercase">{counts}</span>
-                <h2 class="mb-[0.3em]">
-                    <A href=category.href()>{category.name()}</A>
+                <span class="self-start bg-ink px-1.5 py-0.5 text-[0.75rem] font-medium text-bg uppercase">{counts}</span>
+                <h2 class="mt-4 mb-[0.3em]">
+                    <A href=category.href() attr:class="hover:text-accent">{category.name()}</A>
                 </h2>
                 <p class="text-muted">{move || description(site, category)}</p>
                 <div class="mt-auto flex flex-wrap gap-3">
@@ -134,14 +138,14 @@ fn ProductCard(href: String, image: String, count: String, title: &'static str, 
     view! {
         <A
             href=href
-            attr:class="group flex flex-col overflow-hidden rounded-card border border-line bg-surface transition-colors hover:border-accent/50"
+            attr:class="group flex flex-col overflow-hidden border-2 border-ink bg-bg-2 transition-shadow duration-300 hover:shadow-[8px_8px_0_var(--color-ink)]"
         >
-            <img class="aspect-[16/10] w-full object-cover transition-transform duration-900 ease-soft group-hover:scale-105" src=image alt=title loading="lazy" />
+            <img class="photo-bw aspect-[16/10] w-full border-b-2 border-ink object-cover group-hover:scale-105" src=image alt=title loading="lazy" />
             <div class="px-[30px] pt-7 pb-8">
-                <span class="text-[0.8rem] tracking-[0.15em] text-accent uppercase">{count}</span>
-                <h3 class="mb-[0.3em] text-[clamp(1.5rem,3vw,2.2rem)]">{title}</h3>
+                <span class="bg-ink px-1.5 py-0.5 text-[0.75rem] font-medium text-bg uppercase">{count}</span>
+                <h3 class="mt-4 mb-[0.3em] text-[clamp(2rem,4vw,3rem)]">{title}</h3>
                 <p class="text-muted">{text}</p>
-                <span class="font-medium text-accent">{cta}</span>
+                <span class="font-medium uppercase underline decoration-accent decoration-4 underline-offset-4">{cta}</span>
             </div>
         </A>
     }
@@ -259,22 +263,21 @@ pub fn PhotosPage() -> impl IntoView {
                             let id = p.id;
                             view! {
                                 <button
-                                    class="group relative mb-4 block w-full animate-reveal break-inside-avoid overflow-hidden rounded-card bg-surface text-left [animation-duration:0.6s]"
+                                    class="group paper-shadow relative mb-7 block w-full animate-reveal break-inside-avoid text-left transition-transform duration-500 ease-soft [animation-duration:0.6s] odd:-rotate-1 even:rotate-1 hover:z-10 hover:rotate-0 hover:scale-[1.02]"
                                     on:click=move |_| set_selected.set(Some(id))
                                 >
+                                    <span class="torn relative block overflow-hidden bg-surface">
                                     <img
-                                        class="h-auto w-full transition-transform duration-900 ease-soft group-hover:scale-105"
+                                        class="photo-bw h-auto w-full"
                                         src=p.thumb().to_string()
                                         alt=p.title.clone()
                                         loading="lazy"
                                         width=p.width
                                         height=p.height
                                     />
-                                    <span class="absolute inset-x-0 bottom-0 flex flex-col bg-linear-to-t from-black/75 to-transparent px-[18px] py-4 font-display font-semibold opacity-0 transition-opacity duration-350 group-hover:opacity-100 group-focus-visible:opacity-100">
-                                        <small class="font-body text-[0.72rem] font-medium tracking-[0.15em] text-accent uppercase">
-                                            {p.category.name()}
-                                        </small>
+                                    <span class="absolute bottom-[7%] left-4 -rotate-2 border-2 border-ink bg-zine px-2 py-1 font-display text-xl leading-none font-bold uppercase opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-visible:opacity-100">
                                         {p.title.clone()}
+                                    </span>
                                     </span>
                                 </button>
                             }
@@ -371,9 +374,10 @@ pub fn VideosPage() -> impl IntoView {
                                     class="group animate-reveal text-left [animation-duration:0.6s]"
                                     on:click=move |_| set_playing.set(Some(id))
                                 >
-                                    <div class="relative aspect-video overflow-hidden rounded-card bg-surface">
+                                    <div class="paper-shadow transition-transform duration-500 ease-soft group-hover:-rotate-1">
+                                    <div class="torn-alt relative aspect-video overflow-hidden bg-surface">
                                         <img
-                                            class="size-full object-cover brightness-80 transition-transform duration-900 ease-soft group-hover:scale-105"
+                                            class="photo-bw size-full object-cover group-hover:scale-105"
                                             src=v.thumb()
                                             alt=v.title.clone()
                                             loading="lazy"
@@ -382,15 +386,16 @@ pub fn VideosPage() -> impl IntoView {
                                             class="play-btn absolute top-1/2 left-1/2 size-16 -translate-1/2 opacity-90 transition-transform duration-400 ease-soft group-hover:scale-112"
                                             aria-hidden="true"
                                         ></span>
-                                        <span class="absolute right-3 bottom-3 rounded-md bg-black/70 px-[0.6em] py-[0.15em] text-[0.8rem]">
+                                        <span class="absolute right-3 bottom-4 bg-ink px-[0.6em] py-[0.15em] text-[0.8rem] font-medium text-bg">
                                             {v.duration.clone()}
                                         </span>
                                     </div>
+                                    </div>
                                     <div class="pt-3.5">
-                                        <small class="text-xs tracking-[0.12em] text-muted uppercase">
+                                        <small class="text-xs font-medium text-ink/60 uppercase">
                                             {v.category.name()} " · " {v.client.clone()}
                                         </small>
-                                        <h3 class="mt-[0.2em] mb-0">{v.title.clone()}</h3>
+                                        <h3 class="mt-1 mb-0 text-[1.9rem]">{v.title.clone()}</h3>
                                     </div>
                                 </button>
                             }

@@ -44,9 +44,9 @@ pub async fn send_contact(
 
 const LABEL: &str = "flex flex-col gap-2";
 const LABEL_TEXT: &str = "text-[0.85rem] text-muted";
-const FIELD: &str = "rounded-xl border border-line bg-bg px-4 py-[0.85em] text-ink transition placeholder:text-[#5f5c57] focus:border-accent focus:ring-[3px] focus:ring-accent/20 focus:outline-none";
+const FIELD: &str = "rounded-xl border border-line bg-white px-4 py-[0.85em] text-ink transition placeholder:text-black/35 focus:border-accent focus:ring-[3px] focus:ring-accent/20 focus:outline-none";
 const INFO_LABEL: &str = "eyebrow mb-1 block";
-const INFO_LINK: &str = "text-[1.1rem] transition-colors hover:text-accent";
+const INFO_LINK: &str = "text-[1.2rem] font-medium underline decoration-2 decoration-transparent underline-offset-4 transition-colors hover:decoration-accent";
 const STATUS: &str = "rounded-xl px-[1.1em] py-[0.9em] text-[0.95rem]";
 
 #[component]
@@ -59,7 +59,7 @@ pub fn ContactPage() -> impl IntoView {
     let result = move || {
         action.value().get().map(|r| match r {
             Ok(()) => view! {
-                <p class=format!("{STATUS} bg-[rgb(120_200_140/0.12)] text-[#9fe0b0]") role="status">
+                <p class=format!("{STATUS} bg-success/10 text-success") role="status">
                     "Danke für deine Nachricht! Ich melde mich innerhalb von 48 Stunden."
                 </p>
             }
@@ -70,7 +70,7 @@ pub fn ContactPage() -> impl IntoView {
                     other => other.to_string(),
                 };
                 view! {
-                    <p class=format!("{STATUS} bg-[rgb(230_100_90/0.12)] text-[#f4a49b]") role="alert">
+                    <p class=format!("{STATUS} bg-danger/10 text-danger") role="alert">
                         {msg}
                     </p>
                 }
@@ -118,7 +118,7 @@ pub fn ContactPage() -> impl IntoView {
 
             <ActionForm
                 action=action
-                attr:class="flex flex-col gap-5 rounded-card border border-line bg-bg-2 p-[clamp(24px,4vw,44px)]"
+                attr:class="flex flex-col gap-5 border-2 border-ink bg-bg-2 p-[clamp(24px,4vw,44px)] shadow-[8px_8px_0_var(--color-ink)]"
             >
                 <div class="grid gap-5 sm:grid-cols-2">
                     <label class=LABEL>

@@ -53,7 +53,7 @@ fn Roles() -> impl IntoView {
                             </div>
                         }
                         .into_any(),
-                        Err(e) => view! { <p class="text-[#f4a49b]">{err_text(e)}</p> }.into_any(),
+                        Err(e) => view! { <p class="text-danger">{err_text(e)}</p> }.into_any(),
                     }
                 })}
             </Transition>

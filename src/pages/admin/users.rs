@@ -74,7 +74,7 @@ fn Users() -> impl IntoView {
                         }
                         .into_any()
                     }
-                    (Err(e), _) | (_, Err(e)) => view! { <p class="text-[#f4a49b]">{err_text(e)}</p> }.into_any(),
+                    (Err(e), _) | (_, Err(e)) => view! { <p class="text-danger">{err_text(e)}</p> }.into_any(),
                 }
             })}
         </Transition>
@@ -176,7 +176,7 @@ fn UserCard(user: UserRow, roles: StoredValue<Vec<RoleRow>>, actions: Actions, i
                     <strong class="text-ink">{user.email.clone()}</strong>
                     {owner.then_some(view! { <span class="ml-2 rounded-full bg-accent/15 px-2 py-0.5 text-[0.75rem] text-accent">"Inhaber"</span> })}
                     {is_me.then_some(view! { <span class="ml-2 rounded-full border border-line px-2 py-0.5 text-[0.75rem] text-muted">"Du"</span> })}
-                    {(!user.active).then_some(view! { <span class="ml-2 rounded-full border border-[#f4a49b]/40 px-2 py-0.5 text-[0.75rem] text-[#f4a49b]">"Gesperrt"</span> })}
+                    {(!user.active).then_some(view! { <span class="ml-2 rounded-full border border-danger/40 px-2 py-0.5 text-[0.75rem] text-danger">"Gesperrt"</span> })}
                 </div>
                 <span class="text-[0.8rem] text-muted">{format!("seit {}", user.created_at.get(..10).unwrap_or(&user.created_at))}</span>
             </div>

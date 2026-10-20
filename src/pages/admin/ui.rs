@@ -4,14 +4,14 @@ use leptos::{html, prelude::*};
 
 use crate::{api::upload_image, models::MediaInfo};
 
-pub const INPUT: &str = "w-full rounded-xl border border-line bg-bg px-3.5 py-2.5 text-[0.95rem] text-ink transition placeholder:text-[#5f5c57] focus:border-accent focus:ring-[3px] focus:ring-accent/20 focus:outline-none disabled:opacity-50";
+pub const INPUT: &str = "w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-[0.95rem] text-ink transition placeholder:text-black/35 focus:border-accent focus:ring-[3px] focus:ring-accent/20 focus:outline-none disabled:opacity-50";
 pub const LABEL: &str = "flex flex-col gap-1.5";
 pub const LABEL_TEXT: &str = "text-[0.8rem] text-muted";
 pub const CARD: &str = "rounded-card border border-line bg-bg-2 p-5 sm:p-6";
 pub const BTN_SMALL: &str = "rounded-lg border border-line px-3 py-1.5 text-[0.85rem] transition-colors hover:border-ink/40 hover:text-ink disabled:opacity-40";
-pub const BTN_DANGER: &str = "rounded-lg border border-[#f4a49b]/40 px-3 py-1.5 text-[0.85rem] text-[#f4a49b] transition-colors hover:bg-[#f4a49b]/10 disabled:opacity-40";
+pub const BTN_DANGER: &str = "rounded-lg border border-danger/40 px-3 py-1.5 text-[0.85rem] text-danger transition-colors hover:bg-danger/10 disabled:opacity-40";
 pub const BTN_SAVE: &str = "btn btn-primary px-4 py-2";
-pub const CHECKBOX: &str = "size-4 accent-[#e9b44c]";
+pub const CHECKBOX: &str = "size-4 accent-[#ff00f4]";
 
 /// Fehlermeldung eines Server-Aufrufs ohne technisches Präfix
 pub fn err_text(e: ServerFnError) -> String {
@@ -28,8 +28,8 @@ pub type Status = RwSignal<Option<Result<String, String>>>;
 pub fn StatusLine(status: Status) -> impl IntoView {
     move || {
         status.get().map(|s| match s {
-            Ok(msg) => view! { <p class="mb-0 text-[0.9rem] text-[#9fe0b0]" role="status">{msg}</p> }.into_any(),
-            Err(msg) => view! { <p class="mb-0 text-[0.9rem] text-[#f4a49b]" role="alert">{msg}</p> }.into_any(),
+            Ok(msg) => view! { <p class="mb-0 text-[0.9rem] text-success" role="status">{msg}</p> }.into_any(),
+            Err(msg) => view! { <p class="mb-0 text-[0.9rem] text-danger" role="alert">{msg}</p> }.into_any(),
         })
     }
 }
@@ -94,7 +94,7 @@ pub fn ImageUpload(#[prop(into)] on_uploaded: Callback<MediaInfo>, #[prop(option
                 {move || if upload.pending().get() { "Wird hochgeladen …" } else { label.unwrap_or("Bild hochladen") }}
             </label>
             {move || match upload.value().get() {
-                Some(Err(e)) => Some(view! { <span class="text-[0.85rem] text-[#f4a49b]">{err_text(e)}</span> }),
+                Some(Err(e)) => Some(view! { <span class="text-[0.85rem] text-danger">{err_text(e)}</span> }),
                 _ => None,
             }}
         </form>
