@@ -66,13 +66,13 @@ pub fn random_password() -> String {
 
 // ───────────── Sessions ─────────────
 
-fn new_token() -> String {
+pub fn new_token() -> String {
     let mut bytes = [0u8; 32];
     OsRng.fill_bytes(&mut bytes);
     hex::encode(bytes)
 }
 
-fn hash_token(token: &str) -> String {
+pub fn hash_token(token: &str) -> String {
     hex::encode(Sha256::digest(token.as_bytes()))
 }
 
@@ -81,19 +81,20 @@ fn cookie_secure() -> bool {
     std::env::var("LEPTOS_ENV").map(|e| e.eq_ignore_ascii_case("PROD")).unwrap_or(false)
 }
 
-fn cookie(value: &str, max_age: i64) -> String {
+/// Set-Cookie-Zeile für ein beliebiges Cookie (HttpOnly, SameSite=Lax)
+pub fn cookie(name: &str, value: &str, max_age: i64) -> String {
     let secure = if cookie_secure() { "; Secure" } else { "" };
-    format!("{SESSION_COOKIE}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age={max_age}{secure}")
+    format!("{name}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age={max_age}{secure}")
 }
 
-fn set_cookie(value: String) {
+pub fn set_cookie(value: String) {
     if let (Some(resp), Ok(v)) = (use_context::<leptos_axum::ResponseOptions>(), HeaderValue::from_str(&value)) {
         resp.append_header(header::SET_COOKIE, v);
     }
 }
 
-/// Session-Token aus dem Cookie der aktuellen Anfrage
-pub async fn request_token() -> Option<String> {
+/// Wert eines Cookies aus der Anfrage (oder `None`)
+pub async fn request_cookie(name: &str) -> Option<String> {
     let headers: HeaderMap = leptos_axum::extract().await.ok()?;
     headers
         .get_all(header::COOKIE)
@@ -101,9 +102,13 @@ pub async fn request_token() -> Option<String> {
         .filter_map(|v| v.to_str().ok())
         .flat_map(|v| v.split(';'))
         .filter_map(|pair| pair.trim().split_once('='))
-        .find(|(name, _)| *name == SESSION_COOKIE)
+        .find(|(n, _)| *n == name)
         .map(|(_, value)| value.to_string())
-        .filter(|v| v.len() == 64)
+}
+
+/// Session-Token aus dem Cookie der aktuellen Anfrage
+pub async fn request_token() -> Option<String> {
+    request_cookie(SESSION_COOKIE).await.filter(|v| v.len() == 64)
 }
 
 pub async fn start_session(user_id: i64) -> Result<(), ServerFnError> {
@@ -116,7 +121,7 @@ pub async fn start_session(user_id: i64) -> Result<(), ServerFnError> {
         .execute(pool())
         .await
         .map_err(db_err)?;
-    set_cookie(cookie(&token, max_age));
+    set_cookie(cookie(SESSION_COOKIE, &token, max_age));
     Ok(())
 }
 
@@ -128,7 +133,7 @@ pub async fn end_session() -> Result<(), ServerFnError> {
             .await
             .map_err(db_err)?;
     }
-    set_cookie(cookie("", 0));
+    set_cookie(cookie(SESSION_COOKIE, "", 0));
     Ok(())
 }
 

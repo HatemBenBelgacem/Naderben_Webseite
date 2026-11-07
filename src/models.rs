@@ -80,3 +80,36 @@ pub struct MediaInfo {
     pub width: Option<u32>,
     pub height: Option<u32>,
 }
+
+// ───────────── Shop ─────────────
+
+/// Eine Zeile im Warenkorb. Name und Preis kommen direkt aus dem Produkt.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CartLine {
+    pub product_id: i64,
+    pub name: String,
+    pub price_cents: i64,
+    pub stock: i64,
+    pub quantity: i64,
+}
+
+impl CartLine {
+    pub fn line_total_cents(&self) -> i64 {
+        self.price_cents * self.quantity
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Cart {
+    pub lines: Vec<CartLine>,
+}
+
+impl Cart {
+    pub fn item_count(&self) -> i64 {
+        self.lines.iter().map(|l| l.quantity).sum()
+    }
+
+    pub fn total_cents(&self) -> i64 {
+        self.lines.iter().map(CartLine::line_total_cents).sum()
+    }
+}

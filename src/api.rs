@@ -6,7 +6,7 @@ use leptos::server_fn::codec::{Json, MultipartData, MultipartFormData};
 
 use crate::{
     data::SiteData,
-    models::{ContentEntry, MediaInfo, RoleRow, SessionUser, UserRow},
+    models::{Cart, ContentEntry, MediaInfo, RoleRow, SessionUser, UserRow},
 };
 
 #[cfg(feature = "ssr")]
@@ -16,6 +16,7 @@ use crate::{
     models::ADMIN_ROLE_ID,
     server::{
         auth::{self, Perm},
+        cart,
         db::{self, pool},
         db_err, media, user_err,
     },
@@ -175,6 +176,41 @@ pub async fn upload_image(data: MultipartData) -> Result<MediaInfo, ServerFnErro
         return media::store(&filename, bytes).await;
     }
     Err(user_err("Bitte eine Bilddatei auswählen."))
+}
+
+// ───────────── Warenkorb ─────────────
+
+/// Warenkorb des Besuchers, erkannt über das Cookie `nb_cart` (ohne Anmeldung nutzbar)
+#[cfg(feature = "ssr")]
+async fn current_cart() -> Result<Cart, ServerFnError> {
+    match cart::cart_id().await? {
+        Some(id) => cart::load(id).await,
+        None => Ok(Cart::default()),
+    }
+}
+
+#[server]
+pub async fn get_cart() -> Result<Cart, ServerFnError> {
+    current_cart().await
+}
+
+#[server(input = Json)]
+pub async fn add_to_cart(product_id: i64, quantity: i64) -> Result<Cart, ServerFnError> {
+    cart::add(product_id, quantity).await?;
+    current_cart().await
+}
+
+/// Menge setzen; 0 entfernt das Produkt aus dem Warenkorb
+#[server(input = Json)]
+pub async fn update_cart_item(product_id: i64, quantity: i64) -> Result<Cart, ServerFnError> {
+    cart::set_quantity(product_id, quantity).await?;
+    current_cart().await
+}
+
+#[server(input = Json)]
+pub async fn remove_from_cart(product_id: i64) -> Result<Cart, ServerFnError> {
+    cart::remove(product_id).await?;
+    current_cart().await
 }
 
 // ───────────── Portfolio ─────────────

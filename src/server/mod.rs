@@ -1,6 +1,7 @@
 //! Nur auf dem Server: Datenbank, Anmeldung, Bild-Speicher.
 
 pub mod auth;
+pub mod cart;
 pub mod db;
 pub mod media;
 
