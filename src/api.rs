@@ -199,9 +199,9 @@ fn clean_product(name: &str, description: &str, price_cents: i64, stock: i64) ->
     Ok((name.to_string(), description.to_string()))
 }
 
-#[server]
-pub async fn list_products() -> Result<Vec<Product>, ServerFnError> {
-    auth::require(Perm::EditContent).await?;
+/// Alle Produkte aus der Datenbank, ohne Rechteprüfung
+#[cfg(feature = "ssr")]
+async fn load_products() -> Result<Vec<Product>, ServerFnError> {
     let rows: Vec<(i64, String, String, i64, i64)> =
         sqlx::query_as("SELECT id, name, description, price_cents, stock FROM products ORDER BY id")
             .fetch_all(pool())
@@ -211,6 +211,19 @@ pub async fn list_products() -> Result<Vec<Product>, ServerFnError> {
         .into_iter()
         .map(|(id, name, description, price_cents, stock)| Product { id, name, description, price_cents, stock })
         .collect())
+}
+
+/// Produkte für die Verwaltung (nur mit Recht zum Bearbeiten)
+#[server]
+pub async fn list_products() -> Result<Vec<Product>, ServerFnError> {
+    auth::require(Perm::EditContent).await?;
+    load_products().await
+}
+
+/// Produkte für den Shop (öffentlich)
+#[server]
+pub async fn get_shop_products() -> Result<Vec<Product>, ServerFnError> {
+    load_products().await
 }
 
 /// Neues Produkt (id = None) anlegen oder ein bestehendes ändern

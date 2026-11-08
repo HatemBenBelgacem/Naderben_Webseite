@@ -16,6 +16,7 @@ use crate::{
         contact::ContactPage,
         home::HomePage,
         portfolio::{CategoryOverview, CategoryPage, PhotosPage, PortfolioOverview, PortfolioPage, VideosPage},
+        shop::{provide_shop, use_shop, CartPage, ShopPage},
     },
 };
 
@@ -52,6 +53,7 @@ pub fn App() -> impl IntoView {
         data: Resource::new(|| (), |_| get_site_data()),
         user: Resource::new(|| (), |_| current_user()),
     });
+    provide_shop();
 
     view! {
         <Stylesheet id="leptos" href="/pkg/naderben.css" />
@@ -80,6 +82,8 @@ pub fn App() -> impl IntoView {
                         </ParentRoute>
                     </ParentRoute>
                     <Route path=path!("contact") view=ContactPage ssr=SsrMode::Async />
+                    <Route path=path!("shop") view=ShopPage ssr=SsrMode::Async />
+                    <Route path=path!("warenkorb") view=CartPage ssr=SsrMode::Async />
                     <ParentRoute path=path!("admin") view=AdminLayout ssr=SsrMode::Async>
                         <Route path=path!("") view=AdminHome />
                         <Route path=path!("inhalte") view=ContentEditor />
@@ -104,6 +108,7 @@ const NAV_LINK: &str = "relative font-medium uppercase text-ink/70 transition-co
 fn Header() -> impl IntoView {
     let (open, set_open) = signal(false);
     let location = use_location();
+    let shop = use_shop();
 
     // Mobile-Menü bei Navigation schliessen
     Effect::new(move |_| {
@@ -133,6 +138,12 @@ fn Header() -> impl IntoView {
                 <nav class="pointer-events-none fixed inset-x-0 top-[76px] flex -translate-y-[120%] flex-col items-start gap-[1.4rem] border-b border-line bg-bg px-6 pt-8 pb-10 font-display text-[1.8rem] opacity-0 transition-all duration-450 ease-soft group-[.menu-open]:pointer-events-auto group-[.menu-open]:translate-y-0 group-[.menu-open]:opacity-100 md:pointer-events-auto md:static md:translate-y-0 md:flex-row md:items-center md:gap-[2.2rem] md:border-0 md:bg-transparent md:p-0 md:font-body md:text-[0.95rem] md:opacity-100">
                     <A href="/about" attr:class=NAV_LINK>"About"</A>
                     <A href="/portfolio" attr:class=NAV_LINK>"Portfolio"</A>
+                    <A href="/shop" attr:class=NAV_LINK>"Shop"</A>
+                    <A href="/warenkorb" attr:class=NAV_LINK>
+                        <Transition fallback=|| "Warenkorb">
+                            {move || format!("Warenkorb ({})", shop.cart().map(|c| c.item_count()).unwrap_or(0))}
+                        </Transition>
+                    </A>
                     <A
                         href="/contact"
                         attr:class="border-2 border-ink bg-accent px-[1.1em] py-[0.45em] font-body text-base font-medium text-accent-ink uppercase transition-colors hover:bg-ink hover:text-bg aria-[current=page]:bg-ink aria-[current=page]:text-bg md:text-[0.9rem]"
@@ -164,6 +175,7 @@ fn Footer() -> impl IntoView {
                 <nav class="flex flex-col gap-2">
                     <a class=FOOTER_LINK href="/about">"About"</a>
                     <a class=FOOTER_LINK href="/portfolio">"Portfolio"</a>
+                    <a class=FOOTER_LINK href="/shop">"Shop"</a>
                     {Category::ALL
                         .map(|c| view! { <a class=format!("{FOOTER_LINK} pl-3") href=c.href()>{c.name()}</a> })
                         .collect_view()}

@@ -3,4 +3,5 @@ pub mod admin;
 pub mod contact;
 pub mod home;
 pub mod portfolio;
+pub mod shop;
 pub mod zine;
