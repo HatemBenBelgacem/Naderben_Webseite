@@ -80,3 +80,103 @@ pub struct MediaInfo {
     pub width: Option<u32>,
     pub height: Option<u32>,
 }
+
+// ───────────── Shop ─────────────
+
+/// Eine Zeile im Warenkorb. Name und Preis kommen direkt aus dem Produkt.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CartLine {
+    pub product_id: i64,
+    pub name: String,
+    pub price_cents: i64,
+    pub stock: i64,
+    pub quantity: i64,
+}
+
+impl CartLine {
+    pub fn line_total_cents(&self) -> i64 {
+        self.price_cents * self.quantity
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Cart {
+    pub lines: Vec<CartLine>,
+}
+
+impl Cart {
+    pub fn item_count(&self) -> i64 {
+        self.lines.iter().map(|l| l.quantity).sum()
+    }
+
+    pub fn total_cents(&self) -> i64 {
+        self.lines.iter().map(CartLine::line_total_cents).sum()
+    }
+}
+
+/// Bestätigung nach einer Bestellung
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct OrderConfirmation {
+    pub id: i64,
+    pub total_cents: i64,
+    pub item_count: i64,
+}
+
+/// Obergrenzen für Preis und Lagerbestand (Schutz vor Tippfehlern)
+pub const MAX_PRICE_CENTS: i64 = 10_000_000;
+pub const MAX_STOCK: i64 = 100_000;
+
+/// Ein Produkt im Shop. Der Preis steht in Rappen (ganze Zahl).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Product {
+    pub id: i64,
+    pub name: String,
+    pub description: String,
+    pub price_cents: i64,
+    pub stock: i64,
+}
+
+/// „25.50“ oder „25,5“ → 2550. Höchstens zwei Nachkommastellen, keine Vorzeichen.
+pub fn parse_price(input: &str) -> Option<i64> {
+    let s = input.trim().replace(',', ".");
+    let (whole, frac) = s.split_once('.').unwrap_or((s.as_str(), ""));
+    if whole.is_empty() && frac.is_empty() {
+        return None;
+    }
+    if !whole.chars().all(|c| c.is_ascii_digit()) || !frac.chars().all(|c| c.is_ascii_digit()) || frac.len() > 2 {
+        return None;
+    }
+    let whole: i64 = if whole.is_empty() { 0 } else { whole.parse().ok()? };
+    let frac: i64 = match frac.len() {
+        0 => 0,
+        1 => frac.parse::<i64>().ok()? * 10,
+        _ => frac.parse().ok()?,
+    };
+    whole.checked_mul(100)?.checked_add(frac)
+}
+
+/// 2550 → „25.50“
+pub fn format_price(cents: i64) -> String {
+    format!("{}.{:02}", cents / 100, cents % 100)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn preise_werden_umgerechnet() {
+        assert_eq!(parse_price("25"), Some(2500));
+        assert_eq!(parse_price("25.5"), Some(2550));
+        assert_eq!(parse_price("25,50"), Some(2550));
+        assert_eq!(parse_price(" 0.05 "), Some(5));
+        assert_eq!(parse_price(".5"), Some(50));
+        assert_eq!(parse_price("1.234"), None);
+        assert_eq!(parse_price("-3"), None);
+        assert_eq!(parse_price(""), None);
+        assert_eq!(parse_price("."), None);
+        assert_eq!(parse_price("abc"), None);
+        assert_eq!(format_price(2550), "25.50");
+        assert_eq!(format_price(5), "0.05");
+    }
+}

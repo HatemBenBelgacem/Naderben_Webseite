@@ -6,18 +6,19 @@ use leptos::server_fn::codec::{Json, MultipartData, MultipartFormData};
 
 use crate::{
     data::SiteData,
-    models::{ContentEntry, MediaInfo, RoleRow, SessionUser, UserRow},
+    models::{Cart, ContentEntry, MediaInfo, OrderConfirmation, Product, RoleRow, SessionUser, UserRow},
 };
 
 #[cfg(feature = "ssr")]
 use crate::{
     content::{find_field, FieldKind},
     data::Category,
-    models::ADMIN_ROLE_ID,
+    models::{ADMIN_ROLE_ID, MAX_PRICE_CENTS, MAX_STOCK},
     server::{
         auth::{self, Perm},
+        cart,
         db::{self, pool},
-        db_err, media, user_err,
+        db_err, media, order, user_err,
     },
 };
 
@@ -175,6 +176,141 @@ pub async fn upload_image(data: MultipartData) -> Result<MediaInfo, ServerFnErro
         return media::store(&filename, bytes).await;
     }
     Err(user_err("Bitte eine Bilddatei auswählen."))
+}
+
+// ───────────── Produkte (Verwaltung) ─────────────
+
+#[cfg(feature = "ssr")]
+fn clean_product(name: &str, description: &str, price_cents: i64, stock: i64) -> Result<(String, String), ServerFnError> {
+    let name = name.trim();
+    if name.is_empty() || name.chars().count() > 120 {
+        return Err(user_err("Bitte einen Produktnamen mit höchstens 120 Zeichen angeben."));
+    }
+    let description = description.trim();
+    if description.chars().count() > 2000 {
+        return Err(user_err("Die Beschreibung ist zu lang (höchstens 2000 Zeichen)."));
+    }
+    if !(0..=MAX_PRICE_CENTS).contains(&price_cents) {
+        return Err(user_err("Der Preis ist ungültig."));
+    }
+    if !(0..=MAX_STOCK).contains(&stock) {
+        return Err(user_err("Der Lagerbestand ist ungültig."));
+    }
+    Ok((name.to_string(), description.to_string()))
+}
+
+/// Alle Produkte aus der Datenbank, ohne Rechteprüfung
+#[cfg(feature = "ssr")]
+async fn load_products() -> Result<Vec<Product>, ServerFnError> {
+    let rows: Vec<(i64, String, String, i64, i64)> =
+        sqlx::query_as("SELECT id, name, description, price_cents, stock FROM products ORDER BY id")
+            .fetch_all(pool())
+            .await
+            .map_err(db_err)?;
+    Ok(rows
+        .into_iter()
+        .map(|(id, name, description, price_cents, stock)| Product { id, name, description, price_cents, stock })
+        .collect())
+}
+
+/// Produkte für die Verwaltung (nur mit Recht zum Bearbeiten)
+#[server]
+pub async fn list_products() -> Result<Vec<Product>, ServerFnError> {
+    auth::require(Perm::EditContent).await?;
+    load_products().await
+}
+
+/// Produkte für den Shop (öffentlich)
+#[server]
+pub async fn get_shop_products() -> Result<Vec<Product>, ServerFnError> {
+    load_products().await
+}
+
+/// Neues Produkt (id = None) anlegen oder ein bestehendes ändern
+#[server(input = Json)]
+pub async fn save_product(id: Option<i64>, name: String, description: String, price_cents: i64, stock: i64) -> Result<(), ServerFnError> {
+    auth::require(Perm::EditContent).await?;
+    let (name, description) = clean_product(&name, &description, price_cents, stock)?;
+    match id {
+        Some(id) => {
+            let done = sqlx::query("UPDATE products SET name = ?, description = ?, price_cents = ?, stock = ? WHERE id = ?")
+                .bind(name)
+                .bind(description)
+                .bind(price_cents)
+                .bind(stock)
+                .bind(id)
+                .execute(pool())
+                .await
+                .map_err(db_err)?;
+            if done.rows_affected() == 0 {
+                return Err(user_err("Produkt nicht gefunden."));
+            }
+        }
+        None => {
+            sqlx::query("INSERT INTO products (name, description, price_cents, stock) VALUES (?, ?, ?, ?)")
+                .bind(name)
+                .bind(description)
+                .bind(price_cents)
+                .bind(stock)
+                .execute(pool())
+                .await
+                .map_err(db_err)?;
+        }
+    }
+    Ok(())
+}
+
+/// Produkt löschen. Es verschwindet aus allen Warenkörben, alte Bestellungen bleiben erhalten.
+#[server(input = Json)]
+pub async fn delete_product(id: i64) -> Result<(), ServerFnError> {
+    auth::require(Perm::EditContent).await?;
+    sqlx::query("DELETE FROM products WHERE id = ?").bind(id).execute(pool()).await.map_err(db_err)?;
+    Ok(())
+}
+
+// ───────────── Kasse ─────────────
+
+/// Bestellung aufgeben (ohne Anmeldung). Prüft Eingaben und Lager und leert den Warenkorb.
+#[server(input = Json)]
+pub async fn place_order(name: String, email: String) -> Result<OrderConfirmation, ServerFnError> {
+    let name = clean_name(&name)?;
+    if name.chars().count() < 2 {
+        return Err(user_err("Bitte gib deinen Namen an (mindestens 2 Zeichen)."));
+    }
+    let email = clean_email(&email)?;
+    order::place(&name, &email).await
+}
+
+// ───────────── Warenkorb ─────────────
+
+/// Warenkorb des Besuchers, erkannt über das Cookie `nb_cart` (ohne Anmeldung nutzbar)
+#[cfg(feature = "ssr")]
+async fn current_cart() -> Result<Cart, ServerFnError> {
+    match cart::cart_id().await? {
+        Some(id) => cart::load(id).await,
+        None => Ok(Cart::default()),
+    }
+}
+
+#[server]
+pub async fn get_cart() -> Result<Cart, ServerFnError> {
+    current_cart().await
+}
+
+#[server(input = Json)]
+pub async fn add_to_cart(product_id: i64, quantity: i64) -> Result<Cart, ServerFnError> {
+    cart::add(product_id, quantity).await
+}
+
+/// Menge setzen; 0 entfernt das Produkt aus dem Warenkorb
+#[server(input = Json)]
+pub async fn update_cart_item(product_id: i64, quantity: i64) -> Result<Cart, ServerFnError> {
+    cart::set_quantity(product_id, quantity).await
+}
+
+#[server(input = Json)]
+pub async fn remove_from_cart(product_id: i64) -> Result<Cart, ServerFnError> {
+    cart::remove(product_id).await
 }
 
 // ───────────── Portfolio ─────────────
