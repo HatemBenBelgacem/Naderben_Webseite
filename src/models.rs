@@ -114,6 +114,28 @@ impl Cart {
     }
 }
 
+/// Mögliche Status einer Bestellung (gleich wie die CHECK-Regel in der Datenbank)
+pub const ORDER_STATUSES: [&str; 4] = ["offen", "bezahlt", "versendet", "storniert"];
+
+/// Eine Bestellung für die Verwaltung, mit ihren Positionen
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct OrderSummary {
+    pub id: i64,
+    pub created_at: String,
+    pub customer_name: String,
+    pub customer_email: String,
+    pub status: String,
+    pub total_cents: i64,
+    pub items: Vec<OrderItemLine>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct OrderItemLine {
+    pub product_name: String,
+    pub unit_price_cents: i64,
+    pub quantity: i64,
+}
+
 /// Bestätigung nach einer Bestellung
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OrderConfirmation {

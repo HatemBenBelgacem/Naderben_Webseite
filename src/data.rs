@@ -1,6 +1,6 @@
 //! Gemeinsame Datentypen für Portfolio und Seiteninhalte.
 //!
-//! Die eigentlichen Inhalte liegen in der SQLite-Datenbank. Die `SEED_*`-Listen
+//! Die eigentlichen Inhalte liegen in der PostgreSQL-Datenbank. Die `SEED_*`-Listen
 //! werden nur beim ersten Start in die leere Datenbank geschrieben
 //! (Platzhalter von picsum.photos bzw. Blender-Open-Movies auf YouTube).
 

@@ -14,7 +14,7 @@ pub const MAX_QUANTITY: i64 = 99;
 /// Warenkorb-ID aus dem Cookie. Ohne Cookie (oder bei unbekanntem Token) gibt es keinen Korb.
 pub async fn cart_id() -> Result<Option<i64>, ServerFnError> {
     let Some(token) = auth::request_cookie(CART_COOKIE).await else { return Ok(None) };
-    let row: Option<(i64,)> = sqlx::query_as("SELECT id FROM carts WHERE token_hash = ?")
+    let row: Option<(i64,)> = sqlx::query_as("SELECT id FROM carts WHERE token_hash = $1")
         .bind(auth::hash_token(&token))
         .fetch_optional(pool())
         .await
@@ -28,7 +28,7 @@ pub async fn ensure_cart_id() -> Result<i64, ServerFnError> {
         return Ok(id);
     }
     let token = auth::new_token();
-    let (id,): (i64,) = sqlx::query_as("INSERT INTO carts (token_hash) VALUES (?) RETURNING id")
+    let (id,): (i64,) = sqlx::query_as("INSERT INTO carts (token_hash) VALUES ($1) RETURNING id")
         .bind(auth::hash_token(&token))
         .fetch_one(pool())
         .await
@@ -42,7 +42,7 @@ pub async fn load(cart_id: i64) -> Result<Cart, ServerFnError> {
     let rows: Vec<(i64, String, i64, i64, i64)> = sqlx::query_as(
         "SELECT p.id, p.name, p.price_cents, p.stock, ci.quantity
          FROM cart_items ci JOIN products p ON p.id = ci.product_id
-         WHERE ci.cart_id = ? ORDER BY ci.rowid",
+         WHERE ci.cart_id = $1 ORDER BY p.id",
     )
     .bind(cart_id)
     .fetch_all(pool())
@@ -58,7 +58,7 @@ pub async fn load(cart_id: i64) -> Result<Cart, ServerFnError> {
 
 /// Lagerbestand eines Produkts. `None`, wenn es das Produkt nicht gibt.
 async fn stock_of(product_id: i64) -> Result<Option<i64>, ServerFnError> {
-    let row: Option<(i64,)> = sqlx::query_as("SELECT stock FROM products WHERE id = ?")
+    let row: Option<(i64,)> = sqlx::query_as("SELECT stock FROM products WHERE id = $1")
         .bind(product_id)
         .fetch_optional(pool())
         .await
@@ -68,7 +68,7 @@ async fn stock_of(product_id: i64) -> Result<Option<i64>, ServerFnError> {
 
 /// Menge eines Produkts im Warenkorb (0, wenn es nicht darin liegt)
 async fn quantity_in(cart_id: i64, product_id: i64) -> Result<i64, ServerFnError> {
-    let row: Option<(i64,)> = sqlx::query_as("SELECT quantity FROM cart_items WHERE cart_id = ? AND product_id = ?")
+    let row: Option<(i64,)> = sqlx::query_as("SELECT quantity FROM cart_items WHERE cart_id = $1 AND product_id = $2")
         .bind(cart_id)
         .bind(product_id)
         .fetch_optional(pool())
@@ -93,7 +93,7 @@ fn check_quantity(quantity: i64, stock: i64) -> Result<(), ServerFnError> {
 
 async fn write_quantity(cart_id: i64, product_id: i64, quantity: i64) -> Result<(), ServerFnError> {
     sqlx::query(
-        "INSERT INTO cart_items (cart_id, product_id, quantity) VALUES (?, ?, ?)
+        "INSERT INTO cart_items (cart_id, product_id, quantity) VALUES ($1, $2, $3)
          ON CONFLICT(cart_id, product_id) DO UPDATE SET quantity = excluded.quantity",
     )
     .bind(cart_id)
@@ -133,7 +133,7 @@ pub async fn set_quantity(product_id: i64, quantity: i64) -> Result<Cart, Server
 /// Produkt aus dem Warenkorb entfernen. Ohne Warenkorb ist das Ergebnis ein leerer Korb.
 pub async fn remove(product_id: i64) -> Result<Cart, ServerFnError> {
     let Some(cart) = cart_id().await? else { return Ok(Cart::default()) };
-    sqlx::query("DELETE FROM cart_items WHERE cart_id = ? AND product_id = ?")
+    sqlx::query("DELETE FROM cart_items WHERE cart_id = $1 AND product_id = $2")
         .bind(cart)
         .bind(product_id)
         .execute(pool())

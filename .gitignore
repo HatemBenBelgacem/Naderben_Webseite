@@ -1,4 +1,4 @@
 /target
 .DS_Store
-# Lokale SQLite-Datenbank
+# Alter lokaler Datenordner (SQLite, nicht mehr genutzt)
 /data

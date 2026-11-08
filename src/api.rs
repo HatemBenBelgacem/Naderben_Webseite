@@ -6,14 +6,14 @@ use leptos::server_fn::codec::{Json, MultipartData, MultipartFormData};
 
 use crate::{
     data::SiteData,
-    models::{Cart, ContentEntry, MediaInfo, OrderConfirmation, Product, RoleRow, SessionUser, UserRow},
+    models::{Cart, ContentEntry, MediaInfo, OrderConfirmation, OrderSummary, Product, RoleRow, SessionUser, UserRow},
 };
 
 #[cfg(feature = "ssr")]
 use crate::{
     content::{find_field, FieldKind},
     data::Category,
-    models::{ADMIN_ROLE_ID, MAX_PRICE_CENTS, MAX_STOCK},
+    models::{OrderItemLine, ADMIN_ROLE_ID, MAX_PRICE_CENTS, MAX_STOCK, ORDER_STATUSES},
     server::{
         auth::{self, Perm},
         cart,
@@ -47,7 +47,7 @@ pub async fn current_user() -> Result<Option<SessionUser>, ServerFnError> {
 #[server]
 pub async fn login(email: String, password: String) -> Result<SessionUser, ServerFnError> {
     let email = email.trim().to_lowercase();
-    let row: Option<(i64, String, bool)> = sqlx::query_as("SELECT id, password_hash, active FROM users WHERE email = ?")
+    let row: Option<(i64, String, bool)> = sqlx::query_as("SELECT id, password_hash, active FROM users WHERE email = $1")
         .bind(&email)
         .fetch_optional(pool())
         .await
@@ -63,7 +63,7 @@ pub async fn login(email: String, password: String) -> Result<SessionUser, Serve
 
     // Das Inhaber-Konto ist immer Admin
     if auth::is_owner(&email) {
-        sqlx::query("UPDATE users SET role_id = ? WHERE id = ?")
+        sqlx::query("UPDATE users SET role_id = $1 WHERE id = $2")
             .bind(ADMIN_ROLE_ID)
             .bind(user_id)
             .execute(pool())
@@ -83,7 +83,7 @@ pub async fn logout() -> Result<(), ServerFnError> {
 #[server]
 pub async fn change_password(current_password: String, new_password: String) -> Result<(), ServerFnError> {
     let me = auth::require(Perm::LoggedIn).await?;
-    let (hash,): (String,) = sqlx::query_as("SELECT password_hash FROM users WHERE id = ?")
+    let (hash,): (String,) = sqlx::query_as("SELECT password_hash FROM users WHERE id = $1")
         .bind(me.id)
         .fetch_one(pool())
         .await
@@ -94,7 +94,7 @@ pub async fn change_password(current_password: String, new_password: String) -> 
     }
     auth::validate_password(&new_password)?;
     let hash = auth::hash_password(&new_password).await?;
-    sqlx::query("UPDATE users SET password_hash = ? WHERE id = ?")
+    sqlx::query("UPDATE users SET password_hash = $1 WHERE id = $2")
         .bind(hash)
         .bind(me.id)
         .execute(pool())
@@ -119,7 +119,7 @@ pub async fn save_content(entries: Vec<ContentEntry>) -> Result<(), ServerFnErro
         }
         if field.kind == FieldKind::Image {
             media::validate_image_url(value)?;
-            let old: Option<(String,)> = sqlx::query_as("SELECT value FROM content WHERE key = ?")
+            let old: Option<(String,)> = sqlx::query_as("SELECT value FROM content WHERE key = $1")
                 .bind(field.key)
                 .fetch_optional(pool())
                 .await
@@ -131,11 +131,11 @@ pub async fn save_content(entries: Vec<ContentEntry>) -> Result<(), ServerFnErro
 
         if value == field.default {
             // Standardwert → Eintrag entfernen, damit spätere Änderungen am Standard greifen
-            sqlx::query("DELETE FROM content WHERE key = ?").bind(field.key).execute(pool()).await.map_err(db_err)?;
+            sqlx::query("DELETE FROM content WHERE key = $1").bind(field.key).execute(pool()).await.map_err(db_err)?;
         } else {
             sqlx::query(
-                "INSERT INTO content (key, value, updated_by) VALUES (?, ?, ?)
-                 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now'), updated_by = excluded.updated_by",
+                "INSERT INTO content (key, value, updated_by) VALUES ($1, $2, $3)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'), updated_by = excluded.updated_by",
             )
             .bind(field.key)
             .bind(value)
@@ -233,7 +233,7 @@ pub async fn save_product(id: Option<i64>, name: String, description: String, pr
     let (name, description) = clean_product(&name, &description, price_cents, stock)?;
     match id {
         Some(id) => {
-            let done = sqlx::query("UPDATE products SET name = ?, description = ?, price_cents = ?, stock = ? WHERE id = ?")
+            let done = sqlx::query("UPDATE products SET name = $1, description = $2, price_cents = $3, stock = $4 WHERE id = $5")
                 .bind(name)
                 .bind(description)
                 .bind(price_cents)
@@ -247,7 +247,7 @@ pub async fn save_product(id: Option<i64>, name: String, description: String, pr
             }
         }
         None => {
-            sqlx::query("INSERT INTO products (name, description, price_cents, stock) VALUES (?, ?, ?, ?)")
+            sqlx::query("INSERT INTO products (name, description, price_cents, stock) VALUES ($1, $2, $3, $4)")
                 .bind(name)
                 .bind(description)
                 .bind(price_cents)
@@ -264,7 +264,68 @@ pub async fn save_product(id: Option<i64>, name: String, description: String, pr
 #[server(input = Json)]
 pub async fn delete_product(id: i64) -> Result<(), ServerFnError> {
     auth::require(Perm::EditContent).await?;
-    sqlx::query("DELETE FROM products WHERE id = ?").bind(id).execute(pool()).await.map_err(db_err)?;
+    sqlx::query("DELETE FROM products WHERE id = $1").bind(id).execute(pool()).await.map_err(db_err)?;
+    Ok(())
+}
+
+// ───────────── Bestellungen (Verwaltung) ─────────────
+
+/// Die neuesten 200 Bestellungen mit ihren Positionen
+#[server]
+pub async fn list_orders() -> Result<Vec<OrderSummary>, ServerFnError> {
+    auth::require(Perm::EditContent).await?;
+    let orders: Vec<(i64, String, String, String, i64, String)> = sqlx::query_as(
+        "SELECT id, customer_name, customer_email, status, total_cents, created_at
+         FROM orders ORDER BY id DESC LIMIT 200",
+    )
+    .fetch_all(pool())
+    .await
+    .map_err(db_err)?;
+    let items: Vec<(i64, String, i64, i64)> = sqlx::query_as(
+        "SELECT order_id, product_name, unit_price_cents, quantity FROM order_items
+         WHERE order_id IN (SELECT id FROM orders ORDER BY id DESC LIMIT 200)
+         ORDER BY id",
+    )
+    .fetch_all(pool())
+    .await
+    .map_err(db_err)?;
+
+    let mut result: Vec<OrderSummary> = orders
+        .into_iter()
+        .map(|(id, customer_name, customer_email, status, total_cents, created_at)| OrderSummary {
+            id,
+            created_at,
+            customer_name,
+            customer_email,
+            status,
+            total_cents,
+            items: Vec::new(),
+        })
+        .collect();
+    for (order_id, product_name, unit_price_cents, quantity) in items {
+        if let Some(order) = result.iter_mut().find(|o| o.id == order_id) {
+            order.items.push(OrderItemLine { product_name, unit_price_cents, quantity });
+        }
+    }
+    Ok(result)
+}
+
+/// Status einer Bestellung ändern, z. B. auf „bezahlt“
+#[server(input = Json)]
+pub async fn update_order_status(id: i64, status: String) -> Result<(), ServerFnError> {
+    auth::require(Perm::EditContent).await?;
+    if !ORDER_STATUSES.contains(&status.as_str()) {
+        return Err(user_err("Unbekannter Status."));
+    }
+    let done = sqlx::query("UPDATE orders SET status = $1 WHERE id = $2")
+        .bind(status)
+        .bind(id)
+        .execute(pool())
+        .await
+        .map_err(db_err)?;
+    if done.rows_affected() == 0 {
+        return Err(user_err("Bestellung nicht gefunden."));
+    }
     Ok(())
 }
 
@@ -359,12 +420,12 @@ pub async fn add_photo(category: String, title: String, image_url: String, width
     }
     media::validate_image_url(&image_url)?;
     let order = db::next_sort_order("photos", category.slug()).await?;
-    sqlx::query("INSERT INTO photos (category, title, image_url, width, height, sort_order) VALUES (?, ?, ?, ?, ?, ?)")
+    sqlx::query("INSERT INTO photos (category, title, image_url, width, height, sort_order) VALUES ($1, $2, $3, $4, $5, $6)")
         .bind(category.slug())
         .bind(title)
         .bind(image_url)
-        .bind(width)
-        .bind(height)
+        .bind(width.map(i64::from))
+        .bind(height.map(i64::from))
         .bind(order)
         .execute(pool())
         .await
@@ -377,7 +438,7 @@ pub async fn update_photo(id: i64, category: String, title: String) -> Result<()
     auth::require(Perm::EditContent).await?;
     let category = parse_category(&category)?;
     let title = clean_title(&title)?;
-    sqlx::query("UPDATE photos SET category = ?, title = ? WHERE id = ?")
+    sqlx::query("UPDATE photos SET category = $1, title = $2 WHERE id = $3")
         .bind(category.slug())
         .bind(title)
         .bind(id)
@@ -390,7 +451,7 @@ pub async fn update_photo(id: i64, category: String, title: String) -> Result<()
 #[server(input = Json)]
 pub async fn delete_photo(id: i64) -> Result<(), ServerFnError> {
     auth::require(Perm::EditContent).await?;
-    let row: Option<(String, Option<String>)> = sqlx::query_as("DELETE FROM photos WHERE id = ? RETURNING image_url, thumb_url")
+    let row: Option<(String, Option<String>)> = sqlx::query_as("DELETE FROM photos WHERE id = $1 RETURNING image_url, thumb_url")
         .bind(id)
         .fetch_optional(pool())
         .await
@@ -420,7 +481,7 @@ pub async fn save_video(id: Option<i64>, category: String, title: String, client
 
     match id {
         Some(id) => {
-            sqlx::query("UPDATE videos SET category = ?, title = ?, client = ?, duration = ?, youtube_id = ? WHERE id = ?")
+            sqlx::query("UPDATE videos SET category = $1, title = $2, client = $3, duration = $4, youtube_id = $5 WHERE id = $6")
                 .bind(category.slug())
                 .bind(title)
                 .bind(client)
@@ -433,7 +494,7 @@ pub async fn save_video(id: Option<i64>, category: String, title: String, client
         }
         None => {
             let order = db::next_sort_order("videos", category.slug()).await?;
-            sqlx::query("INSERT INTO videos (category, title, client, duration, youtube_id, sort_order) VALUES (?, ?, ?, ?, ?, ?)")
+            sqlx::query("INSERT INTO videos (category, title, client, duration, youtube_id, sort_order) VALUES ($1, $2, $3, $4, $5, $6)")
                 .bind(category.slug())
                 .bind(title)
                 .bind(client)
@@ -451,7 +512,7 @@ pub async fn save_video(id: Option<i64>, category: String, title: String, client
 #[server(input = Json)]
 pub async fn delete_video(id: i64) -> Result<(), ServerFnError> {
     auth::require(Perm::EditContent).await?;
-    sqlx::query("DELETE FROM videos WHERE id = ?").bind(id).execute(pool()).await.map_err(db_err)?;
+    sqlx::query("DELETE FROM videos WHERE id = $1").bind(id).execute(pool()).await.map_err(db_err)?;
     Ok(())
 }
 
@@ -471,7 +532,7 @@ async fn load_role(id: i64) -> Result<RoleRow, ServerFnError> {
     let row: Option<RoleTuple> = sqlx::query_as(
         "SELECT r.id, r.name, r.description, r.can_edit_content, r.can_manage_users, r.can_manage_roles, r.is_system,
                 (SELECT COUNT(*) FROM users u WHERE u.role_id = r.id)
-         FROM roles r WHERE r.id = ?",
+         FROM roles r WHERE r.id = $1",
     )
     .bind(id)
     .fetch_optional(pool())
@@ -541,7 +602,7 @@ pub async fn save_role(
     match id {
         Some(ADMIN_ROLE_ID) => {
             // Admin behält Namen und alle Rechte – nur die Beschreibung ist änderbar
-            sqlx::query("UPDATE roles SET description = ? WHERE id = ?")
+            sqlx::query("UPDATE roles SET description = $1 WHERE id = $2")
                 .bind(description)
                 .bind(ADMIN_ROLE_ID)
                 .execute(pool())
@@ -558,7 +619,7 @@ pub async fn save_role(
                 can_manage_roles && !current.can_manage_roles,
             )?;
             sqlx::query(
-                "UPDATE roles SET name = ?, description = ?, can_edit_content = ?, can_manage_users = ?, can_manage_roles = ? WHERE id = ?",
+                "UPDATE roles SET name = $1, description = $2, can_edit_content = $3, can_manage_users = $4, can_manage_roles = $5 WHERE id = $6",
             )
             .bind(name)
             .bind(description)
@@ -573,7 +634,7 @@ pub async fn save_role(
         None => {
             ensure_no_escalation(&me, can_edit_content, can_manage_users, can_manage_roles)?;
             sqlx::query(
-                "INSERT INTO roles (name, description, can_edit_content, can_manage_users, can_manage_roles) VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO roles (name, description, can_edit_content, can_manage_users, can_manage_roles) VALUES ($1, $2, $3, $4, $5)",
             )
             .bind(name)
             .bind(description)
@@ -598,7 +659,7 @@ pub async fn delete_role(id: i64) -> Result<(), ServerFnError> {
     if role.user_count > 0 {
         return Err(user_err("Die Rolle ist noch Benutzern zugewiesen."));
     }
-    sqlx::query("DELETE FROM roles WHERE id = ?").bind(id).execute(pool()).await.map_err(db_err)?;
+    sqlx::query("DELETE FROM roles WHERE id = $1").bind(id).execute(pool()).await.map_err(db_err)?;
     Ok(())
 }
 
@@ -618,7 +679,7 @@ fn to_user_row((id, email, name, role_id, role_name, active, created_at): UserTu
 
 #[cfg(feature = "ssr")]
 async fn load_user(id: i64) -> Result<UserRow, ServerFnError> {
-    let row: Option<UserTuple> = sqlx::query_as(&format!("{USER_LIST_SELECT} WHERE u.id = ?"))
+    let row: Option<UserTuple> = sqlx::query_as(&format!("{USER_LIST_SELECT} WHERE u.id = $1"))
         .bind(id)
         .fetch_optional(pool())
         .await
@@ -659,7 +720,7 @@ fn clean_email(email: &str) -> Result<String, ServerFnError> {
 #[server]
 pub async fn list_users() -> Result<Vec<UserRow>, ServerFnError> {
     auth::require(Perm::ManageUsers).await?;
-    let rows: Vec<UserTuple> = sqlx::query_as(&format!("{USER_LIST_SELECT} ORDER BY u.name COLLATE NOCASE"))
+    let rows: Vec<UserTuple> = sqlx::query_as(&format!("{USER_LIST_SELECT} ORDER BY lower(u.name)"))
         .fetch_all(pool())
         .await
         .map_err(db_err)?;
@@ -676,7 +737,7 @@ pub async fn create_user(name: String, email: String, role_id: i64, password: St
     check_assignable_role(&me, role_id).await?;
 
     let hash = auth::hash_password(&password).await?;
-    sqlx::query("INSERT INTO users (email, name, password_hash, role_id) VALUES (?, ?, ?, ?)")
+    sqlx::query("INSERT INTO users (email, name, password_hash, role_id) VALUES ($1, $2, $3, $4)")
         .bind(email)
         .bind(name)
         .bind(hash)
@@ -710,7 +771,7 @@ pub async fn update_user(id: i64, name: String, role_id: i64, active: bool) -> R
         check_assignable_role(&me, user.role_id).await?;
     }
 
-    sqlx::query("UPDATE users SET name = ?, role_id = ?, active = ? WHERE id = ?")
+    sqlx::query("UPDATE users SET name = $1, role_id = $2, active = $3 WHERE id = $4")
         .bind(name)
         .bind(role_id)
         .bind(active)
@@ -734,7 +795,7 @@ pub async fn set_user_password(id: i64, password: String) -> Result<(), ServerFn
     check_assignable_role(&me, user.role_id).await?;
     auth::validate_password(&password)?;
     let hash = auth::hash_password(&password).await?;
-    sqlx::query("UPDATE users SET password_hash = ? WHERE id = ?")
+    sqlx::query("UPDATE users SET password_hash = $1 WHERE id = $2")
         .bind(hash)
         .bind(id)
         .execute(pool())
@@ -754,6 +815,6 @@ pub async fn delete_user(id: i64) -> Result<(), ServerFnError> {
         return Err(user_err("Du kannst dich nicht selbst löschen."));
     }
     check_assignable_role(&me, user.role_id).await?;
-    sqlx::query("DELETE FROM users WHERE id = ?").bind(id).execute(pool()).await.map_err(db_err)?;
+    sqlx::query("DELETE FROM users WHERE id = $1").bind(id).execute(pool()).await.map_err(db_err)?;
     Ok(())
 }

@@ -38,13 +38,9 @@ ENV RUST_LOG="info" \
     LEPTOS_SITE_PKG_DIR="pkg" \
     LEPTOS_SITE_ADDR="0.0.0.0:8080" \
     LEPTOS_RELOAD_PORT="3001" \
-    LEPTOS_ENV="PROD" \
-    DATABASE_URL="sqlite:///app/data/naderben.db"
+    LEPTOS_ENV="PROD"
 
-# SQLite-Datenbank (inkl. hochgeladener Bilder) – auf Railway hier ein Volume
-# mit Mount-Pfad /app/data anhängen, sonst gehen die Daten bei jedem Deploy verloren.
-# Railway-Volumes gehören root; daher läuft der Prozess ohne eigenen User.
-RUN mkdir -p /app/data
+# DATABASE_URL kommt zur Laufzeit von außen (Railway: PostgreSQL-Dienst, lokal: docker compose).
 
 # Railway setzt $PORT – main.rs bindet automatisch an 0.0.0.0:$PORT
 EXPOSE 8080

@@ -1,0 +1,16 @@
+# Lokale PostgreSQL-Datenbank für die Entwicklung: `docker compose up -d`
+# Passt zur Standard-DATABASE_URL in src/server/db.rs.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: naderben
+      POSTGRES_PASSWORD: naderben
+      POSTGRES_DB: naderben
+    ports:
+      - "5432:5432"
+    volumes:
+      - naderben-pg:/var/lib/postgresql/data
+
+volumes:
+  naderben-pg:
