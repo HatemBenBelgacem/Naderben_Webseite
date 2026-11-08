@@ -90,8 +90,25 @@ pub fn ShopPage() -> impl IntoView {
 fn ProductCard(product: Product, add: ServerAction<AddToCart>) -> impl IntoView {
     let id = product.id;
     let sold_out = product.stock <= 0;
+    let alt = product.name.clone();
+    let mut images = product.image_urls.clone().into_iter();
+    let cover = images.next();
+    let more: Vec<String> = images.collect();
     view! {
         <article class="flex flex-col gap-4 rounded-card border border-line bg-bg-2 p-6">
+            {cover.map(|src| {
+                view! { <img class="aspect-[4/3] w-full rounded-xl border border-line object-cover" src=src alt=alt.clone() loading="lazy" /> }
+            })}
+            {(!more.is_empty()).then(|| {
+                view! {
+                    <div class="flex flex-wrap gap-2">
+                        {more
+                            .into_iter()
+                            .map(|src| view! { <img class="size-16 rounded-lg border border-line object-cover" src=src alt=alt.clone() loading="lazy" /> })
+                            .collect_view()}
+                    </div>
+                }
+            })}
             <h3 class="mb-0">{product.name}</h3>
             <p class="mb-0 flex-1 text-muted">{product.description}</p>
             <div class="flex flex-wrap items-center justify-between gap-3">
@@ -313,11 +330,18 @@ fn CartRow(line: CartLine, update: ServerAction<UpdateCartItem>, remove: ServerA
     let at_max = quantity >= line.stock;
     let unit = format!("CHF {} pro Stück", format_price(line.price_cents));
     let line_total = format!("CHF {}", format_price(line.line_total_cents()));
+    let alt = line.name.clone();
+    let thumb = line.image_url.clone();
     view! {
         <li class="flex flex-col gap-4 rounded-card border border-line bg-bg-2 p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <h3 class="mb-1">{line.name}</h3>
-                <p class="mb-0 text-[0.9rem] text-muted">{unit}</p>
+            <div class="flex items-center gap-4">
+                {thumb.map(|src| {
+                    view! { <img class="size-20 shrink-0 rounded-xl border border-line object-cover" src=src alt=alt loading="lazy" /> }
+                })}
+                <div>
+                    <h3 class="mb-1">{line.name}</h3>
+                    <p class="mb-0 text-[0.9rem] text-muted">{unit}</p>
+                </div>
             </div>
             <div class="flex flex-wrap items-center gap-3">
                 <button

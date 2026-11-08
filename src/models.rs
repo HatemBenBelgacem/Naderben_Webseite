@@ -91,6 +91,8 @@ pub struct CartLine {
     pub price_cents: i64,
     pub stock: i64,
     pub quantity: i64,
+    /// Erstes Bild des Produkts, falls vorhanden
+    pub image_url: Option<String>,
 }
 
 impl CartLine {

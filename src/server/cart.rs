@@ -39,8 +39,8 @@ pub async fn ensure_cart_id() -> Result<i64, ServerFnError> {
 
 /// Alle Positionen eines Warenkorbs, mit aktuellem Namen und Preis aus der Produkttabelle
 pub async fn load(cart_id: i64) -> Result<Cart, ServerFnError> {
-    let rows: Vec<(i64, String, i64, i64, i64)> = sqlx::query_as(
-        "SELECT p.id, p.name, p.price_cents, p.stock, ci.quantity
+    let rows: Vec<(i64, String, i64, i64, i64, Vec<String>)> = sqlx::query_as(
+        "SELECT p.id, p.name, p.price_cents, p.stock, ci.quantity, p.image_urls
          FROM cart_items ci JOIN products p ON p.id = ci.product_id
          WHERE ci.cart_id = $1 ORDER BY p.id",
     )
@@ -51,7 +51,14 @@ pub async fn load(cart_id: i64) -> Result<Cart, ServerFnError> {
 
     let lines = rows
         .into_iter()
-        .map(|(product_id, name, price_cents, stock, quantity)| CartLine { product_id, name, price_cents, stock, quantity })
+        .map(|(product_id, name, price_cents, stock, quantity, images)| CartLine {
+            product_id,
+            name,
+            price_cents,
+            stock,
+            quantity,
+            image_url: images.into_iter().next(),
+        })
         .collect();
     Ok(Cart { lines })
 }
