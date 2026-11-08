@@ -156,6 +156,8 @@ pub struct Product {
     pub description: String,
     pub price_cents: i64,
     pub stock: i64,
+    /// Bilder in der Reihenfolge der Anzeige
+    pub image_urls: Vec<String>,
 }
 
 /// „25.50“ oder „25,5“ → 2550. Höchstens zwei Nachkommastellen, keine Vorzeichen.
