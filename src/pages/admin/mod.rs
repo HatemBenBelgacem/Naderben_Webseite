@@ -2,6 +2,7 @@
 
 mod account;
 mod content_editor;
+mod orders;
 mod portfolio_editor;
 mod roles;
 mod shop_editor;
@@ -10,6 +11,7 @@ mod users;
 
 pub use account::AccountPage;
 pub use content_editor::ContentEditor;
+pub use orders::OrdersAdmin;
 pub use portfolio_editor::PortfolioEditor;
 pub use roles::RolesAdmin;
 pub use shop_editor::ShopEditor;
@@ -30,10 +32,11 @@ struct Section {
     allowed: fn(&SessionUser) -> bool,
 }
 
-const SECTIONS: [Section; 6] = [
+const SECTIONS: [Section; 7] = [
     Section { href: "/admin/inhalte", name: "Inhalte", text: "Texte und Bilder der Seiten bearbeiten.", allowed: |u| u.can_edit_content },
     Section { href: "/admin/portfolio", name: "Portfolio", text: "Fotos und Videos der vier Bereiche verwalten.", allowed: |u| u.can_edit_content },
     Section { href: "/admin/shop", name: "Shop", text: "Produkte, Preise und Lagerbestand verwalten.", allowed: |u| u.can_edit_content },
+    Section { href: "/admin/bestellungen", name: "Bestellungen", text: "Bestellungen ansehen und ihren Status ändern.", allowed: |u| u.can_edit_content },
     Section { href: "/admin/benutzer", name: "Benutzer", text: "Konten anlegen, Rollen zuweisen, sperren.", allowed: |u| u.can_manage_users },
     Section { href: "/admin/rollen", name: "Rollen", text: "Rollen und ihre Berechtigungen festlegen.", allowed: |u| u.can_manage_roles },
     Section { href: "/admin/konto", name: "Mein Konto", text: "Eigenes Passwort ändern.", allowed: |_| true },

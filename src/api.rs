@@ -6,14 +6,14 @@ use leptos::server_fn::codec::{Json, MultipartData, MultipartFormData};
 
 use crate::{
     data::SiteData,
-    models::{Cart, ContentEntry, MediaInfo, OrderConfirmation, Product, RoleRow, SessionUser, UserRow},
+    models::{Cart, ContentEntry, MediaInfo, OrderConfirmation, OrderSummary, Product, RoleRow, SessionUser, UserRow},
 };
 
 #[cfg(feature = "ssr")]
 use crate::{
     content::{find_field, FieldKind},
     data::Category,
-    models::{ADMIN_ROLE_ID, MAX_PRICE_CENTS, MAX_STOCK},
+    models::{OrderItemLine, ADMIN_ROLE_ID, MAX_PRICE_CENTS, MAX_STOCK, ORDER_STATUSES},
     server::{
         auth::{self, Perm},
         cart,
@@ -265,6 +265,67 @@ pub async fn save_product(id: Option<i64>, name: String, description: String, pr
 pub async fn delete_product(id: i64) -> Result<(), ServerFnError> {
     auth::require(Perm::EditContent).await?;
     sqlx::query("DELETE FROM products WHERE id = ?").bind(id).execute(pool()).await.map_err(db_err)?;
+    Ok(())
+}
+
+// ───────────── Bestellungen (Verwaltung) ─────────────
+
+/// Die neuesten 200 Bestellungen mit ihren Positionen
+#[server]
+pub async fn list_orders() -> Result<Vec<OrderSummary>, ServerFnError> {
+    auth::require(Perm::EditContent).await?;
+    let orders: Vec<(i64, String, String, String, i64, String)> = sqlx::query_as(
+        "SELECT id, customer_name, customer_email, status, total_cents, created_at
+         FROM orders ORDER BY id DESC LIMIT 200",
+    )
+    .fetch_all(pool())
+    .await
+    .map_err(db_err)?;
+    let items: Vec<(i64, String, i64, i64)> = sqlx::query_as(
+        "SELECT order_id, product_name, unit_price_cents, quantity FROM order_items
+         WHERE order_id IN (SELECT id FROM orders ORDER BY id DESC LIMIT 200)
+         ORDER BY id",
+    )
+    .fetch_all(pool())
+    .await
+    .map_err(db_err)?;
+
+    let mut result: Vec<OrderSummary> = orders
+        .into_iter()
+        .map(|(id, customer_name, customer_email, status, total_cents, created_at)| OrderSummary {
+            id,
+            created_at,
+            customer_name,
+            customer_email,
+            status,
+            total_cents,
+            items: Vec::new(),
+        })
+        .collect();
+    for (order_id, product_name, unit_price_cents, quantity) in items {
+        if let Some(order) = result.iter_mut().find(|o| o.id == order_id) {
+            order.items.push(OrderItemLine { product_name, unit_price_cents, quantity });
+        }
+    }
+    Ok(result)
+}
+
+/// Status einer Bestellung ändern, z. B. auf „bezahlt“
+#[server(input = Json)]
+pub async fn update_order_status(id: i64, status: String) -> Result<(), ServerFnError> {
+    auth::require(Perm::EditContent).await?;
+    if !ORDER_STATUSES.contains(&status.as_str()) {
+        return Err(user_err("Unbekannter Status."));
+    }
+    let done = sqlx::query("UPDATE orders SET status = ? WHERE id = ?")
+        .bind(status)
+        .bind(id)
+        .execute(pool())
+        .await
+        .map_err(db_err)?;
+    if done.rows_affected() == 0 {
+        return Err(user_err("Bestellung nicht gefunden."));
+    }
     Ok(())
 }
 
