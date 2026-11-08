@@ -114,6 +114,14 @@ impl Cart {
     }
 }
 
+/// Bestätigung nach einer Bestellung
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct OrderConfirmation {
+    pub id: i64,
+    pub total_cents: i64,
+    pub item_count: i64,
+}
+
 /// Obergrenzen für Preis und Lagerbestand (Schutz vor Tippfehlern)
 pub const MAX_PRICE_CENTS: i64 = 10_000_000;
 pub const MAX_STOCK: i64 = 100_000;

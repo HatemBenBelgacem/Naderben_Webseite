@@ -16,7 +16,7 @@ use crate::{
         contact::ContactPage,
         home::HomePage,
         portfolio::{CategoryOverview, CategoryPage, PhotosPage, PortfolioOverview, PortfolioPage, VideosPage},
-        shop::{provide_shop, use_shop, CartPage, ShopPage},
+        shop::{provide_shop, use_shop, CartPage, CheckoutPage, ShopPage},
     },
 };
 
@@ -84,6 +84,7 @@ pub fn App() -> impl IntoView {
                     <Route path=path!("contact") view=ContactPage ssr=SsrMode::Async />
                     <Route path=path!("shop") view=ShopPage ssr=SsrMode::Async />
                     <Route path=path!("warenkorb") view=CartPage ssr=SsrMode::Async />
+                    <Route path=path!("kasse") view=CheckoutPage ssr=SsrMode::Async />
                     <ParentRoute path=path!("admin") view=AdminLayout ssr=SsrMode::Async>
                         <Route path=path!("") view=AdminHome />
                         <Route path=path!("inhalte") view=ContentEditor />

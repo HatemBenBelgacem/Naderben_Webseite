@@ -6,7 +6,7 @@ use leptos::server_fn::codec::{Json, MultipartData, MultipartFormData};
 
 use crate::{
     data::SiteData,
-    models::{Cart, ContentEntry, MediaInfo, Product, RoleRow, SessionUser, UserRow},
+    models::{Cart, ContentEntry, MediaInfo, OrderConfirmation, Product, RoleRow, SessionUser, UserRow},
 };
 
 #[cfg(feature = "ssr")]
@@ -18,7 +18,7 @@ use crate::{
         auth::{self, Perm},
         cart,
         db::{self, pool},
-        db_err, media, user_err,
+        db_err, media, order, user_err,
     },
 };
 
@@ -266,6 +266,19 @@ pub async fn delete_product(id: i64) -> Result<(), ServerFnError> {
     auth::require(Perm::EditContent).await?;
     sqlx::query("DELETE FROM products WHERE id = ?").bind(id).execute(pool()).await.map_err(db_err)?;
     Ok(())
+}
+
+// ───────────── Kasse ─────────────
+
+/// Bestellung aufgeben (ohne Anmeldung). Prüft Eingaben und Lager und leert den Warenkorb.
+#[server(input = Json)]
+pub async fn place_order(name: String, email: String) -> Result<OrderConfirmation, ServerFnError> {
+    let name = clean_name(&name)?;
+    if name.chars().count() < 2 {
+        return Err(user_err("Bitte gib deinen Namen an (mindestens 2 Zeichen)."));
+    }
+    let email = clean_email(&email)?;
+    order::place(&name, &email).await
 }
 
 // ───────────── Warenkorb ─────────────

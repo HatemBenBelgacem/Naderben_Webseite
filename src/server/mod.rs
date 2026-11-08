@@ -3,6 +3,7 @@
 pub mod auth;
 pub mod cart;
 pub mod db;
+pub mod order;
 pub mod media;
 
 use leptos::prelude::ServerFnError;
