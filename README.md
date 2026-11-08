@@ -1,6 +1,6 @@
 # Naderben_Webseite
 
-Portfolio-Website für Foto & Video – Fullstack in Rust mit [Leptos 0.8](https://leptos.dev) (SSR + Hydration), Axum und SQLite.
+Portfolio-Website für Foto & Video – Fullstack in Rust mit [Leptos 0.8](https://leptos.dev) (SSR + Hydration), Axum und PostgreSQL.
 
 ## Seiten
 
@@ -39,14 +39,22 @@ Die **Anmeldung** befindet sich in der Fusszeile jeder Seite. Danach erscheint d
 
 ## Daten
 
-Alles liegt in einer SQLite-Datei (`DATABASE_URL`, Standard `sqlite://data/naderben.db`):
-Benutzer, Rollen, Sessions, geänderte Texte, Portfolio-Einträge und hochgeladene Bilder (als BLOB, ausgeliefert unter `/media/{id}`, max. 15 MB, JPG/PNG/WebP/GIF).
+Alles liegt in einer **PostgreSQL**-Datenbank (`DATABASE_URL`, lokal Standard `postgres://naderben:naderben@localhost:5432/naderben`):
+Benutzer, Rollen, Sessions, geänderte Texte, Portfolio, Shop (Produkte, Warenkörbe, Bestellungen) und hochgeladene Bilder (als BYTEA, ausgeliefert unter `/media/{id}`, max. 15 MB, JPG/PNG/WebP/GIF).
 
-- Schema: `migrations/` – wird beim Start automatisch angewendet.
+- Schema: `migrations/` – wird beim Start automatisch angewendet (leere Datenbank genügt).
 - Standardtexte und Bildfelder: `src/content.rs`. In der DB stehen nur Abweichungen; „Standard“ im Editor stellt den Originaltext wieder her.
 - Beim allerersten Start werden Platzhalter-Galerien aus `src/data.rs` eingespielt.
 
 ## Entwicklung
+
+PostgreSQL lokal starten (braucht Docker):
+
+```bash
+docker compose up -d
+```
+
+Die Datenbank läuft dann auf `localhost:5432` (Benutzer und Passwort `naderben`, siehe `docker-compose.yml`). Die Daten bleiben im Docker-Volume `naderben-pg` erhalten; zum Zurücksetzen `docker compose down -v`.
 
 ```bash
 rustup target add wasm32-unknown-unknown
@@ -54,7 +62,7 @@ cargo install cargo-leptos --locked
 cargo leptos watch
 ```
 
-Dann <http://127.0.0.1:3080> öffnen. Die lokale Datenbank liegt in `data/` (nicht im Git). Das Startpasswort steht im Terminal-Log, oder vorher setzen:
+Dann <http://127.0.0.1:3080> öffnen. Das Startpasswort steht im Terminal-Log, oder vorher setzen:
 
 ```bash
 ADMIN_PASSWORD='ein-sicheres-passwort' cargo leptos watch
@@ -69,16 +77,18 @@ Kontaktanfragen werden validiert und ins Server-Log geschrieben (`src/pages/cont
 ## Deployment auf Railway
 
 1. Repo auf GitHub pushen und in Railway als neuen Service verbinden – Railway baut mit dem `Dockerfile` (`railway.json`).
-2. **Volume anlegen** (*Service → Settings → Volumes*) mit Mount-Pfad **`/app/data`**. Ohne Volume gehen Benutzer, Texte und Bilder bei jedem Deploy verloren.
+2. **PostgreSQL-Dienst hinzufügen** (*New → Database → PostgreSQL*). Im App-Dienst unter *Variables* die Variable **`DATABASE_URL`** auf den Dienst referenzieren, z. B. `${{Postgres.DATABASE_URL}}`. Kein Volume nötig: die Daten liegen in der Datenbank.
 3. Variable **`ADMIN_PASSWORD`** setzen (nur für den allerersten Start relevant).
 4. Der Server bindet automatisch an `0.0.0.0:$PORT`.
 5. Unter *Settings → Networking* eine Domain generieren bzw. `naderben.com` verbinden.
 
-Lokal testen:
+Lokal testen (Container gegen die lokale PostgreSQL-Datenbank):
 
 ```bash
 docker build -t naderben .
-docker run --rm -p 8080:8080 -v naderben-data:/app/data -e ADMIN_PASSWORD='ein-sicheres-passwort' naderben
+docker run --rm -p 8080:8080 \
+  -e DATABASE_URL='postgres://naderben:naderben@host.docker.internal:5432/naderben' \
+  -e ADMIN_PASSWORD='ein-sicheres-passwort' naderben
 ```
 
 > Hinweis: `.cargo/config.toml` setzt `--cfg erase_components` für alle Targets (Server + WASM). Ohne das Flag scheitert der macOS-Linker an den langen Leptos-Typnamen; es muss auf beiden Seiten gleich sein, sonst schlägt die Hydration fehl.

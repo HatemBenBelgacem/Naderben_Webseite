@@ -114,7 +114,7 @@ pub async fn request_token() -> Option<String> {
 pub async fn start_session(user_id: i64) -> Result<(), ServerFnError> {
     let token = new_token();
     let max_age = SESSION_DAYS * 24 * 3600;
-    sqlx::query("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)")
+    sqlx::query("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ($1, $2, $3)")
         .bind(hash_token(&token))
         .bind(user_id)
         .bind(now() + max_age)
@@ -127,7 +127,7 @@ pub async fn start_session(user_id: i64) -> Result<(), ServerFnError> {
 
 pub async fn end_session() -> Result<(), ServerFnError> {
     if let Some(token) = request_token().await {
-        sqlx::query("DELETE FROM sessions WHERE token_hash = ?")
+        sqlx::query("DELETE FROM sessions WHERE token_hash = $1")
             .bind(hash_token(&token))
             .execute(pool())
             .await
@@ -140,7 +140,7 @@ pub async fn end_session() -> Result<(), ServerFnError> {
 /// Alle Sessions eines Benutzers beenden – optional ausser der aktuellen
 pub async fn end_sessions_of(user_id: i64, keep_current: bool) -> Result<(), ServerFnError> {
     let keep = if keep_current { request_token().await.map(|t| hash_token(&t)) } else { None };
-    sqlx::query("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?")
+    sqlx::query("DELETE FROM sessions WHERE user_id = $1 AND token_hash != $2")
         .bind(user_id)
         .bind(keep.unwrap_or_default())
         .execute(pool())
@@ -159,7 +159,7 @@ const USER_SELECT: &str = "SELECT u.id, u.name, u.email, r.name, r.can_edit_cont
      FROM users u JOIN roles r ON r.id = u.role_id";
 
 pub async fn user_by_id(id: i64) -> Result<Option<SessionUser>, ServerFnError> {
-    let row: Option<UserRow> = sqlx::query_as(&format!("{USER_SELECT} WHERE u.id = ? AND u.active = 1"))
+    let row: Option<UserRow> = sqlx::query_as(&format!("{USER_SELECT} WHERE u.id = $1 AND u.active = TRUE"))
         .bind(id)
         .fetch_optional(pool())
         .await
@@ -172,7 +172,7 @@ pub async fn current_user() -> Result<Option<SessionUser>, ServerFnError> {
     let Some(token) = request_token().await else { return Ok(None) };
     let row: Option<UserRow> = sqlx::query_as(&format!(
         "{USER_SELECT} JOIN sessions s ON s.user_id = u.id
-         WHERE s.token_hash = ? AND s.expires_at > ? AND u.active = 1"
+         WHERE s.token_hash = $1 AND s.expires_at > $2 AND u.active = TRUE"
     ))
     .bind(hash_token(&token))
     .bind(now())

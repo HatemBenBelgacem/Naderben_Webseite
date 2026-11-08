@@ -1,4 +1,4 @@
-//! Hochgeladene Bilder liegen als BLOB in SQLite und werden unter `/media/{id}` ausgeliefert.
+//! Hochgeladene Bilder liegen als BYTEA in PostgreSQL und werden unter `/media/{id}` ausgeliefert.
 
 use axum::{
     extract::Path,
@@ -14,7 +14,7 @@ use crate::models::MediaInfo;
 pub const MAX_UPLOAD_BYTES: usize = 15 * 1024 * 1024;
 
 pub async fn serve(Path(id): Path<i64>) -> Response {
-    let row: Result<Option<(String, Vec<u8>)>, _> = sqlx::query_as("SELECT content_type, data FROM media WHERE id = ?")
+    let row: Result<Option<(String, Vec<u8>)>, _> = sqlx::query_as("SELECT content_type, data FROM media WHERE id = $1")
         .bind(id)
         .fetch_optional(pool())
         .await;
@@ -52,13 +52,13 @@ pub async fn store(filename: &str, bytes: Vec<u8>) -> Result<MediaInfo, ServerFn
         .unwrap_or((None, None));
 
     let (id,): (i64,) = sqlx::query_as(
-        "INSERT INTO media (filename, content_type, data, width, height) VALUES (?, ?, ?, ?, ?) RETURNING id",
+        "INSERT INTO media (filename, content_type, data, width, height) VALUES ($1, $2, $3, $4, $5) RETURNING id",
     )
     .bind(filename.chars().take(200).collect::<String>())
     .bind(content_type)
     .bind(bytes)
-    .bind(width)
-    .bind(height)
+    .bind(width.map(i64::from))
+    .bind(height.map(i64::from))
     .fetch_one(pool())
     .await
     .map_err(db_err)?;
@@ -72,8 +72,8 @@ pub async fn cleanup(url: &str) -> Result<(), ServerFnError> {
         return Ok(());
     };
     let (uses,): (i64,) = sqlx::query_as(
-        "SELECT (SELECT COUNT(*) FROM photos WHERE image_url = ?1 OR thumb_url = ?1)
-              + (SELECT COUNT(*) FROM content WHERE value = ?1)",
+        "SELECT (SELECT COUNT(*) FROM photos WHERE image_url = $1 OR thumb_url = $1)
+              + (SELECT COUNT(*) FROM content WHERE value = $1)",
     )
     .bind(url)
     .fetch_one(pool())
@@ -81,7 +81,7 @@ pub async fn cleanup(url: &str) -> Result<(), ServerFnError> {
     .map_err(db_err)?;
 
     if uses == 0 {
-        sqlx::query("DELETE FROM media WHERE id = ?").bind(id).execute(pool()).await.map_err(db_err)?;
+        sqlx::query("DELETE FROM media WHERE id = $1").bind(id).execute(pool()).await.map_err(db_err)?;
     }
     Ok(())
 }

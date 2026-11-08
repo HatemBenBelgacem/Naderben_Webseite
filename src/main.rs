@@ -9,7 +9,7 @@ async fn main() {
     use std::net::SocketAddr;
     use tower_http::compression::CompressionLayer;
 
-    // SQLite öffnen, Migrationen und Admin-Konto – ohne Datenbank kein Start
+    // PostgreSQL verbinden, Migrationen und Admin-Konto – ohne Datenbank kein Start
     if let Err(e) = server::db::init().await {
         eprintln!("[db] Start fehlgeschlagen: {e}");
         std::process::exit(1);

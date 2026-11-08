@@ -15,7 +15,7 @@ pub async fn place(customer_name: &str, customer_email: &str) -> Result<OrderCon
     let rows: Vec<(i64, String, i64, i64)> = sqlx::query_as(
         "SELECT p.id, p.name, p.price_cents, ci.quantity
          FROM cart_items ci JOIN products p ON p.id = ci.product_id
-         WHERE ci.cart_id = ? ORDER BY ci.rowid",
+         WHERE ci.cart_id = $1 ORDER BY p.id",
     )
     .bind(cart_id)
     .fetch_all(&mut *tx)
@@ -28,7 +28,7 @@ pub async fn place(customer_name: &str, customer_email: &str) -> Result<OrderCon
     // Lager abziehen. Nur wenn genug da ist, sonst bricht die ganze Bestellung ab.
     let mut total: i64 = 0;
     for (product_id, name, price_cents, quantity) in &rows {
-        let done = sqlx::query("UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?")
+        let done = sqlx::query("UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock >= $3")
             .bind(*quantity)
             .bind(*product_id)
             .bind(*quantity)
@@ -44,7 +44,7 @@ pub async fn place(customer_name: &str, customer_email: &str) -> Result<OrderCon
     }
 
     let (order_id,): (i64,) =
-        sqlx::query_as("INSERT INTO orders (customer_name, customer_email, total_cents) VALUES (?, ?, ?) RETURNING id")
+        sqlx::query_as("INSERT INTO orders (customer_name, customer_email, total_cents) VALUES ($1, $2, $3) RETURNING id")
             .bind(customer_name)
             .bind(customer_email)
             .bind(total)
@@ -56,7 +56,7 @@ pub async fn place(customer_name: &str, customer_email: &str) -> Result<OrderCon
     for (product_id, name, price_cents, quantity) in &rows {
         sqlx::query(
             "INSERT INTO order_items (order_id, product_id, product_name, unit_price_cents, quantity)
-             VALUES (?, ?, ?, ?, ?)",
+             VALUES ($1, $2, $3, $4, $5)",
         )
         .bind(order_id)
         .bind(*product_id)
@@ -68,7 +68,7 @@ pub async fn place(customer_name: &str, customer_email: &str) -> Result<OrderCon
         .map_err(db_err)?;
     }
 
-    sqlx::query("DELETE FROM cart_items WHERE cart_id = ?")
+    sqlx::query("DELETE FROM cart_items WHERE cart_id = $1")
         .bind(cart_id)
         .execute(&mut *tx)
         .await
