@@ -105,8 +105,8 @@ async fn write_quantity(cart_id: i64, product_id: i64, quantity: i64) -> Result<
     Ok(())
 }
 
-/// Produkt in den Warenkorb legen oder die Menge um `quantity` erhöhen
-pub async fn add(product_id: i64, quantity: i64) -> Result<(), ServerFnError> {
+/// Produkt in den Warenkorb legen oder die Menge um `quantity` erhöhen. Gibt den Korb zurück.
+pub async fn add(product_id: i64, quantity: i64) -> Result<Cart, ServerFnError> {
     if quantity < 1 {
         return Err(user_err("Die Menge muss mindestens 1 sein."));
     }
@@ -114,28 +114,30 @@ pub async fn add(product_id: i64, quantity: i64) -> Result<(), ServerFnError> {
     let cart = ensure_cart_id().await?;
     let total = quantity_in(cart, product_id).await? + quantity;
     check_quantity(total, stock)?;
-    write_quantity(cart, product_id, total).await
+    write_quantity(cart, product_id, total).await?;
+    load(cart).await
 }
 
-/// Menge auf `quantity` setzen. Bei 0 oder weniger wird das Produkt entfernt.
-pub async fn set_quantity(product_id: i64, quantity: i64) -> Result<(), ServerFnError> {
+/// Menge auf `quantity` setzen. Bei 0 oder weniger wird das Produkt entfernt. Gibt den Korb zurück.
+pub async fn set_quantity(product_id: i64, quantity: i64) -> Result<Cart, ServerFnError> {
     if quantity <= 0 {
         return remove(product_id).await;
     }
     let stock = stock_of(product_id).await?.ok_or_else(|| user_err("Produkt nicht gefunden."))?;
     check_quantity(quantity, stock)?;
     let cart = ensure_cart_id().await?;
-    write_quantity(cart, product_id, quantity).await
+    write_quantity(cart, product_id, quantity).await?;
+    load(cart).await
 }
 
-/// Produkt aus dem Warenkorb entfernen. Ohne Warenkorb passiert nichts.
-pub async fn remove(product_id: i64) -> Result<(), ServerFnError> {
-    let Some(cart) = cart_id().await? else { return Ok(()) };
+/// Produkt aus dem Warenkorb entfernen. Ohne Warenkorb ist das Ergebnis ein leerer Korb.
+pub async fn remove(product_id: i64) -> Result<Cart, ServerFnError> {
+    let Some(cart) = cart_id().await? else { return Ok(Cart::default()) };
     sqlx::query("DELETE FROM cart_items WHERE cart_id = ? AND product_id = ?")
         .bind(cart)
         .bind(product_id)
         .execute(pool())
         .await
         .map_err(db_err)?;
-    Ok(())
+    load(cart).await
 }

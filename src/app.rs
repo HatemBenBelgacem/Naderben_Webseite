@@ -12,7 +12,7 @@ use crate::{
     data::Category,
     pages::{
         about::AboutPage,
-        admin::{AccountPage, AdminHome, AdminLayout, ContentEditor, PortfolioEditor, RolesAdmin, UsersAdmin},
+        admin::{AccountPage, AdminHome, AdminLayout, ContentEditor, PortfolioEditor, RolesAdmin, ShopEditor, UsersAdmin},
         contact::ContactPage,
         home::HomePage,
         portfolio::{CategoryOverview, CategoryPage, PhotosPage, PortfolioOverview, PortfolioPage, VideosPage},
@@ -84,6 +84,7 @@ pub fn App() -> impl IntoView {
                         <Route path=path!("") view=AdminHome />
                         <Route path=path!("inhalte") view=ContentEditor />
                         <Route path=path!("portfolio") view=PortfolioEditor />
+                        <Route path=path!("shop") view=ShopEditor />
                         <Route path=path!("benutzer") view=UsersAdmin />
                         <Route path=path!("rollen") view=RolesAdmin />
                         <Route path=path!("konto") view=AccountPage />
