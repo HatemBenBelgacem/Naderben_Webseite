@@ -95,23 +95,24 @@ fn ProductCard(product: Product, add: ServerAction<AddToCart>) -> impl IntoView 
     let cover = images.next();
     let more: Vec<String> = images.collect();
     view! {
-        <article class="flex flex-col gap-4 rounded-card border border-line bg-bg-2 p-6">
+        <article class="flex flex-col overflow-hidden rounded-card bg-bg-2 shadow-lg">
             {cover.map(|src| {
-                view! { <img class="aspect-[4/3] w-full rounded-xl border border-line object-cover" src=src alt=alt.clone() loading="lazy" /> }
+                view! { <img class="aspect-[4/3] w-full object-cover" src=src alt=alt.clone() loading="lazy" /> }
             })}
-            {(!more.is_empty()).then(|| {
-                view! {
-                    <div class="flex flex-wrap gap-2">
-                        {more
-                            .into_iter()
-                            .map(|src| view! { <img class="size-16 rounded-lg border border-line object-cover" src=src alt=alt.clone() loading="lazy" /> })
-                            .collect_view()}
-                    </div>
-                }
-            })}
-            <h3 class="mb-0">{product.name}</h3>
-            <p class="mb-0 flex-1 text-muted">{product.description}</p>
-            <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-1 flex-col gap-4 p-6">
+                {(!more.is_empty()).then(|| {
+                    view! {
+                        <div class="flex flex-wrap gap-2">
+                            {more
+                                .into_iter()
+                                .map(|src| view! { <img class="size-14 rounded-lg object-cover" src=src alt=alt.clone() loading="lazy" /> })
+                                .collect_view()}
+                        </div>
+                    }
+                })}
+                <h3 class="mb-0">{product.name}</h3>
+                <p class="mb-0 flex-1 text-muted">{product.description}</p>
+                <div class="flex flex-wrap items-center justify-between gap-3">
                 <span class="font-display text-[1.4rem]">{format!("CHF {}", format_price(product.price_cents))}</span>
                 <button
                     class="btn btn-primary"
@@ -122,6 +123,7 @@ fn ProductCard(product: Product, add: ServerAction<AddToCart>) -> impl IntoView 
                 >
                     {if sold_out { "Ausverkauft" } else { "In den Warenkorb" }}
                 </button>
+                </div>
             </div>
         </article>
     }
