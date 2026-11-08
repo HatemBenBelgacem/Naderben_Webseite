@@ -73,7 +73,8 @@ pub async fn cleanup(url: &str) -> Result<(), ServerFnError> {
     };
     let (uses,): (i64,) = sqlx::query_as(
         "SELECT (SELECT COUNT(*) FROM photos WHERE image_url = $1 OR thumb_url = $1)
-              + (SELECT COUNT(*) FROM content WHERE value = $1)",
+              + (SELECT COUNT(*) FROM content WHERE value = $1)
+              + (SELECT COUNT(*) FROM products WHERE $1 = ANY(image_urls))",
     )
     .bind(url)
     .fetch_one(pool())

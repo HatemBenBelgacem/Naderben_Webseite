@@ -2,11 +2,11 @@ use leptos::prelude::*;
 
 use super::{
     guard,
-    ui::{confirm, err_text, watch_action, Status, StatusLine, BTN_DANGER, BTN_SAVE, CARD, INPUT, LABEL, LABEL_TEXT},
+    ui::{confirm, err_text, watch_action, ImageUpload, Status, StatusLine, BTN_DANGER, BTN_SAVE, CARD, INPUT, LABEL, LABEL_TEXT},
 };
 use crate::{
     api::{DeleteProduct, ListProducts, SaveProduct},
-    models::{format_price, parse_price, Product},
+    models::{format_price, parse_price, MediaInfo, Product},
 };
 
 /// `/admin/shop` – Produkte, Preise und Lagerbestand
@@ -71,6 +71,7 @@ fn ProductForm(product: Option<Product>, status: Status, on_change: Callback<()>
     let description = RwSignal::new(p.description.clone());
     let price = RwSignal::new(if is_new { String::new() } else { format_price(p.price_cents) });
     let stock = RwSignal::new(if is_new { String::new() } else { p.stock.to_string() });
+    let images = RwSignal::new(p.image_urls.clone());
 
     let save = ServerAction::<SaveProduct>::new();
     let delete = ServerAction::<DeleteProduct>::new();
@@ -86,6 +87,7 @@ fn ProductForm(product: Option<Product>, status: Status, on_change: Callback<()>
                 description.set(String::new());
                 price.set(String::new());
                 stock.set(String::new());
+                images.set(Vec::new());
             }
         });
     }
@@ -105,6 +107,7 @@ fn ProductForm(product: Option<Product>, status: Status, on_change: Callback<()>
             description: description.get_untracked(),
             price_cents,
             stock: stock_value,
+            image_urls: images.get_untracked(),
         });
     };
 
@@ -135,6 +138,41 @@ fn ProductForm(product: Option<Product>, status: Status, on_change: Callback<()>
                     <span class=LABEL_TEXT>"Lagerbestand"</span>
                     <input class=INPUT type="number" min="0" step="1" prop:value=stock on:input=move |e| stock.set(event_target_value(&e)) />
                 </label>
+                <div class="flex flex-col gap-3 sm:col-span-2">
+                    <span class=LABEL_TEXT>"Bilder"</span>
+                    <div class="flex flex-wrap gap-3">
+                        {move || {
+                            images
+                                .get()
+                                .into_iter()
+                                .enumerate()
+                                .map(|(i, url)| {
+                                    view! {
+                                        <div class="flex flex-col gap-2">
+                                            <img class="size-24 rounded-xl border border-line object-cover" src=url alt="Produktbild" loading="lazy" />
+                                            <button
+                                                class=BTN_DANGER
+                                                type="button"
+                                                on:click=move |_| images.update(|v| {
+                                                    v.remove(i);
+                                                })
+                                            >
+                                                "Entfernen"
+                                            </button>
+                                        </div>
+                                    }
+                                })
+                                .collect_view()
+                        }}
+                    </div>
+                    {move || {
+                        images.get().is_empty().then(|| view! { <p class="mb-0 text-[0.9rem] text-muted">"Noch keine Bilder."</p> })
+                    }}
+                    <ImageUpload
+                        on_uploaded=move |info: MediaInfo| images.update(|v| v.push(info.url))
+                        label="Bild hinzufügen"
+                    />
+                </div>
                 <div class="flex flex-wrap items-end gap-2 sm:col-span-2">
                     <button class=BTN_SAVE on:click=on_save disabled=move || save.pending().get()>
                         {if is_new { "Produkt hinzufügen" } else { "Speichern" }}

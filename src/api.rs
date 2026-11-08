@@ -202,15 +202,35 @@ fn clean_product(name: &str, description: &str, price_cents: i64, stock: i64) ->
 /// Alle Produkte aus der Datenbank, ohne Rechteprüfung
 #[cfg(feature = "ssr")]
 async fn load_products() -> Result<Vec<Product>, ServerFnError> {
-    let rows: Vec<(i64, String, String, i64, i64)> =
-        sqlx::query_as("SELECT id, name, description, price_cents, stock FROM products ORDER BY id")
+    let rows: Vec<(i64, String, String, i64, i64, Vec<String>)> =
+        sqlx::query_as("SELECT id, name, description, price_cents, stock, image_urls FROM products ORDER BY id")
             .fetch_all(pool())
             .await
             .map_err(db_err)?;
     Ok(rows
         .into_iter()
-        .map(|(id, name, description, price_cents, stock)| Product { id, name, description, price_cents, stock })
+        .map(|(id, name, description, price_cents, stock, image_urls)| Product {
+            id,
+            name,
+            description,
+            price_cents,
+            stock,
+            image_urls,
+        })
         .collect())
+}
+
+/// Bild-Adressen prüfen: höchstens 10, jede ein eigener Upload oder ein https-Link
+#[cfg(feature = "ssr")]
+fn clean_image_urls(urls: Vec<String>) -> Result<Vec<String>, ServerFnError> {
+    let urls: Vec<String> = urls.into_iter().map(|u| u.trim().to_string()).filter(|u| !u.is_empty()).collect();
+    if urls.len() > 10 {
+        return Err(user_err("Höchstens 10 Bilder pro Produkt."));
+    }
+    for url in &urls {
+        media::validate_image_url(url)?;
+    }
+    Ok(urls)
 }
 
 /// Produkte für die Verwaltung (nur mit Recht zum Bearbeiten)
@@ -228,30 +248,51 @@ pub async fn get_shop_products() -> Result<Vec<Product>, ServerFnError> {
 
 /// Neues Produkt (id = None) anlegen oder ein bestehendes ändern
 #[server(input = Json)]
-pub async fn save_product(id: Option<i64>, name: String, description: String, price_cents: i64, stock: i64) -> Result<(), ServerFnError> {
+pub async fn save_product(
+    id: Option<i64>,
+    name: String,
+    description: String,
+    price_cents: i64,
+    stock: i64,
+    image_urls: Vec<String>,
+) -> Result<(), ServerFnError> {
     auth::require(Perm::EditContent).await?;
     let (name, description) = clean_product(&name, &description, price_cents, stock)?;
+    let image_urls = clean_image_urls(image_urls)?;
     match id {
         Some(id) => {
-            let done = sqlx::query("UPDATE products SET name = $1, description = $2, price_cents = $3, stock = $4 WHERE id = $5")
+            let old: Option<(Vec<String>,)> = sqlx::query_as("SELECT image_urls FROM products WHERE id = $1")
+                .bind(id)
+                .fetch_optional(pool())
+                .await
+                .map_err(db_err)?;
+            let Some((old,)) = old else {
+                return Err(user_err("Produkt nicht gefunden."));
+            };
+            sqlx::query("UPDATE products SET name = $1, description = $2, price_cents = $3, stock = $4, image_urls = $5 WHERE id = $6")
                 .bind(name)
                 .bind(description)
                 .bind(price_cents)
                 .bind(stock)
+                .bind(image_urls.clone())
                 .bind(id)
                 .execute(pool())
                 .await
                 .map_err(db_err)?;
-            if done.rows_affected() == 0 {
-                return Err(user_err("Produkt nicht gefunden."));
+            // Entfernte Bilder löschen, sofern sie nirgends mehr verwendet werden
+            for url in &old {
+                if !image_urls.contains(url) {
+                    media::cleanup(url).await?;
+                }
             }
         }
         None => {
-            sqlx::query("INSERT INTO products (name, description, price_cents, stock) VALUES ($1, $2, $3, $4)")
+            sqlx::query("INSERT INTO products (name, description, price_cents, stock, image_urls) VALUES ($1, $2, $3, $4, $5)")
                 .bind(name)
                 .bind(description)
                 .bind(price_cents)
                 .bind(stock)
+                .bind(image_urls)
                 .execute(pool())
                 .await
                 .map_err(db_err)?;
@@ -264,7 +305,15 @@ pub async fn save_product(id: Option<i64>, name: String, description: String, pr
 #[server(input = Json)]
 pub async fn delete_product(id: i64) -> Result<(), ServerFnError> {
     auth::require(Perm::EditContent).await?;
-    sqlx::query("DELETE FROM products WHERE id = $1").bind(id).execute(pool()).await.map_err(db_err)?;
+    let deleted: Option<(Vec<String>,)> = sqlx::query_as("DELETE FROM products WHERE id = $1 RETURNING image_urls")
+        .bind(id)
+        .fetch_optional(pool())
+        .await
+        .map_err(db_err)?;
+    // Die Bilder des Produkts löschen, sofern sie nirgends mehr verwendet werden
+    for url in deleted.map(|(urls,)| urls).unwrap_or_default() {
+        media::cleanup(&url).await?;
+    }
     Ok(())
 }
 
